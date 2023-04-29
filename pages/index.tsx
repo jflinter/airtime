@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { Inter } from 'next/font/google';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -16,7 +16,7 @@ import { vec3, mat3 } from 'gl-matrix';
 
 const inter = Inter({ subsets: ['latin'] });
 
-interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
+interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
 }
 
@@ -28,8 +28,6 @@ const state = {
   velocity: 0,
   acceleration: 0,
 };
-
-let isSetup = false;
 
 type Orientation = {
   alpha: number;
@@ -253,6 +251,15 @@ const handleMotionRosettaCode = (acceleration: vec3, gravityVector: vec3): vec3 
   return [rotatedAcceleration[0], rotatedAcceleration[1], rotatedAcceleration[2]];
 }
 
+// Function to calculate max height
+function getMaxHeight(timeInAir: number): number {
+  let g = 9.8; // m/s^2
+  let v0 = g * timeInAir;
+  let height = (v0 * v0) / (2 * g);
+  let heightFt = height * 3.281;
+  return heightFt;
+}
+
 const round = (float: number | null | undefined) => Number((float ?? 0).toFixed(1))
 let dataPoints: vec3[] = [];
 let activeDataPoints: vec3[] = [];
@@ -261,17 +268,18 @@ export default function Home() {
   const [data, setData] = useState<{ x: number; y: number }[]>([]);
   const getAccel = async () => {
     const requestPermission = (
-      DeviceOrientationEvent as unknown as DeviceOrientationEventiOS
+      DeviceMotionEvent as unknown as DeviceMotionEventiOS
     ).requestPermission;
     const iOS = typeof requestPermission === 'function';
-    if (iOS && !isSetup) {
+    if (iOS && !started) {
       const response = await requestPermission();
       let t = 0;
-      let isInFlight = false;
-      let lastStartTime = null;
-      let lastEndTime = null;
+      let myStatus: 'waiting' | 'accelerating' | 'in_flight' = 'waiting';
+      let lastStartTime = new Date();
+      let lastEndTime = new Date();
       if (response === 'granted') {
-        isSetup = true;
+        localStorage.setItem('airtimeHasLocationAccess', 'true');
+        setStarted(true);
         window.addEventListener('devicemotion', (event) => {
           const acceleration: vec3 = [
             round(event.acceleration?.x),
@@ -289,39 +297,59 @@ export default function Home() {
             acceleration
           );
 
-          const rotatedAcceleration = handleMotionRosettaCode(acceleration, gravityVector)
-          const zAccel = rotatedAcceleration[2]
+          const rotatedAcceleration = handleMotionRosettaCode(
+            acceleration,
+            gravityVector
+          );
+          const zAccel = rotatedAcceleration[2];
           dataPoints.push(rotatedAcceleration);
-          dataPoints = dataPoints.slice(-600)
-          if (isInFlight) {
-            activeDataPoints.push(rotatedAcceleration)
+          dataPoints = dataPoints.slice(-600);
+          if (myStatus === 'in_flight') {
+            activeDataPoints.push(rotatedAcceleration);
           }
           // if we're not in flight and a substantial acceleration has occurred in the last second (60 data points)
-          const threshold = 7
-          if (!isInFlight && dataPoints.length > 60 && dataPoints.slice(-60).some(d => d[2] > threshold)) {
-            isInFlight = true
-            // set lastStartTime to .3 seconds ago
-            lastStartTime = new Date(Date.now() - 300)
-            lastEndTime = null
-            activeDataPoints = dataPoints.slice(-60);
+          const threshold = 10;
+          if (zAccel > threshold && myStatus === 'waiting') {
+            myStatus = 'accelerating';
+            setStatus(myStatus);
+            console.log('accelerating');
+          }
+          if (myStatus === 'accelerating' && zAccel < threshold) {
+            console.log('in flight');
+            myStatus = 'in_flight';
+            setStatus(myStatus);
+            lastStartTime = new Date();
+            activeDataPoints = [];
           }
           // if we are in flight and no substantial acceleration has occurred in the last second (60 data points)
-          if (isInFlight && dataPoints.length > 60 && dataPoints.slice(-60).every(d => d[2] < threshold)) {
-            isInFlight = false
-            lastEndTime = new Date(Date.now() - 1000);
-            setData(activeDataPoints.map((z, i) => ({ x: i, y: z[2] })));
+          if (myStatus === 'in_flight' && rotatedAcceleration[2] < -1) {
+            console.log(activeDataPoints);
+            myStatus = 'waiting';
+            setStatus(myStatus);
+            lastEndTime = new Date();
             let lastVelocity = 0;
             let velocities: number[] = [];
             let lastPosition = 0;
             let positions: number[] = [];
             const dt = 1.0 / 60.0;
             activeDataPoints.forEach((d, i) => {
-              lastVelocity += -d * dt;
+              lastVelocity += -d[2] * dt;
               velocities.push(lastVelocity);
               lastPosition += lastVelocity * dt;
               positions.push(lastPosition);
             });
-            setLastHeight(Math.max(...positions) - Math.min(...positions));
+            const timeCorrectionMs = -150;
+            const durationMs =
+              lastEndTime.getTime() -
+              lastStartTime.getTime() +
+              timeCorrectionMs;
+            const height = getMaxHeight(durationMs / 1000);
+            if (height > 2.5) {
+              setLastDuration(durationMs);
+              setLastHeight(Math.max(...positions) - Math.min(...positions));
+              setDurationHeight(height);
+              setData(activeDataPoints.map((z, i) => ({ x: i, y: z[2] })));
+            }
           }
 
           // // if (accelerationAgainstGravity > 8) {
@@ -336,20 +364,45 @@ export default function Home() {
       }
     }
   };
-  const [lastHeight, setLastHeight] = useState(0)
+  const [started, setStarted] = useState(false);
+  const [status, setStatus] = useState<
+    'waiting' | 'accelerating' | 'in_flight'
+  >('waiting');
+  const [lastHeight, setLastHeight] = useState(0);
+  const [lastDuration, setLastDuration] = useState(0);
+  const [durationHeight, setDurationHeight] = useState(0);
+  useEffect(() => {
+    if (localStorage.getItem('airtimeHasLocationAccess') === 'true') {
+      getAccel();
+    }
+  })
   return (
     <main className={`flex min-h-screen flex-col items-center justify-between`}>
-      <button onClick={getAccel}>Start</button>
-      <h1>{lastHeight ?? ''}</h1>
-      <ResponsiveContainer width="100%" height={400}>
-        <ScatterChart>
-          <CartesianGrid />
-          <XAxis type="number" dataKey="x" name="time" unit="s" />
-          <YAxis type="number" dataKey="y" name="acceleration" unit="m/s^2" />
-          <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-          <Scatter name="A school" data={data} fill="#8884d8" />
-        </ScatterChart>
-      </ResponsiveContainer>
+      {!started && <button onClick={getAccel}>Start</button>}
+      {started && (
+        <>
+          <h1>{status}</h1>
+          <h1>
+            {lastDuration ? `${lastDuration / 1000} seconds in the air` : ''}
+          </h1>
+          <h1>{durationHeight ? `${durationHeight} foot throw!` : ''}</h1>
+          <h1>{lastHeight ? `Power score: ${lastHeight.toFixed(2)}` : ''}</h1>
+          <ResponsiveContainer width="100%" height={400}>
+            <ScatterChart>
+              <CartesianGrid />
+              <XAxis type="number" dataKey="x" name="time" unit="s" />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="acceleration"
+                unit="m/s^2"
+              />
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+              <Scatter name="A school" data={data} fill="#8884d8" />
+            </ScatterChart>
+          </ResponsiveContainer>
+        </>
+      )}
     </main>
   );
 }
