@@ -198,7 +198,7 @@ function vectorLength(v: number[]) {
   return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-const handleMotionRosettaCode = (acceleration: vec3, gravityVector: vec3) => {
+const handleMotionRosettaCode = (acceleration: vec3, gravityVector: vec3): vec3 => {
   function norm(v: number[]) {
     return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
   }
@@ -247,18 +247,15 @@ const handleMotionRosettaCode = (acceleration: vec3, gravityVector: vec3) => {
     }
 
   var v1 = [gravityVector[0], gravityVector[1], gravityVector[2]];
-  var v2 = normalize([0, 0, -1]);
+  var v2 = [0, 0, -1];
   const r = calculateRotationMatrix(v1, v2);
   const rotatedAcceleration = matrixMultiply(r, [acceleration[0], acceleration[1], acceleration[2]])
-  return rotatedAcceleration;
-  // const againstGravity = rotatedAcceleration[2];
-  // if (Math.abs(againstGravity) > 2) {
-  //   console.log('againstGravity', againstGravity);
-  // }
+  return [rotatedAcceleration[0], rotatedAcceleration[1], rotatedAcceleration[2]];
 }
 
 const round = (float: number | null | undefined) => Number((float ?? 0).toFixed(1))
-let dataPoints: number[] = [];
+let dataPoints: vec3[] = [];
+let activeDataPoints: vec3[] = [];
 
 export default function Home() {
   const [data, setData] = useState<{ x: number; y: number }[]>([]);
@@ -270,6 +267,9 @@ export default function Home() {
     if (iOS && !isSetup) {
       const response = await requestPermission();
       let t = 0;
+      let isInFlight = false;
+      let lastStartTime = null;
+      let lastEndTime = null;
       if (response === 'granted') {
         isSetup = true;
         window.addEventListener('devicemotion', (event) => {
@@ -288,16 +288,41 @@ export default function Home() {
             accelerationIncludingGravity,
             acceleration
           );
-          vec3.normalize(gravityVector, gravityVector);
 
-
-          // console.log('acceleration', acceleration, 'accelerationIncludingGravity', accelerationIncludingGravity)
-          // handleMotionChatGPT(gravityVector);
-          // handleMotionChatGPT2(gravityVector)
-          // handleMotionAnthropic(gravityVector);
           const rotatedAcceleration = handleMotionRosettaCode(acceleration, gravityVector)
           const zAccel = rotatedAcceleration[2]
-          dataPoints.push(zAccel);
+          dataPoints.push(rotatedAcceleration);
+          dataPoints = dataPoints.slice(-600)
+          if (isInFlight) {
+            activeDataPoints.push(rotatedAcceleration)
+          }
+          // if we're not in flight and a substantial acceleration has occurred in the last second (60 data points)
+          const threshold = 7
+          if (!isInFlight && dataPoints.length > 60 && dataPoints.slice(-60).some(d => d[2] > threshold)) {
+            isInFlight = true
+            // set lastStartTime to .3 seconds ago
+            lastStartTime = new Date(Date.now() - 300)
+            lastEndTime = null
+            activeDataPoints = dataPoints.slice(-60);
+          }
+          // if we are in flight and no substantial acceleration has occurred in the last second (60 data points)
+          if (isInFlight && dataPoints.length > 60 && dataPoints.slice(-60).every(d => d[2] < threshold)) {
+            isInFlight = false
+            lastEndTime = new Date(Date.now() - 1000);
+            setData(activeDataPoints.map((z, i) => ({ x: i, y: z[2] })));
+            let lastVelocity = 0;
+            let velocities: number[] = [];
+            let lastPosition = 0;
+            let positions: number[] = [];
+            const dt = 1.0 / 60.0;
+            activeDataPoints.forEach((d, i) => {
+              lastVelocity += -d * dt;
+              velocities.push(lastVelocity);
+              lastPosition += lastVelocity * dt;
+              positions.push(lastPosition);
+            });
+            setLastHeight(Math.max(...positions) - Math.min(...positions));
+          }
 
           // // if (accelerationAgainstGravity > 8) {
           //   console.log('without gravity', acceleration)
@@ -311,32 +336,10 @@ export default function Home() {
       }
     }
   };
-  const [isRecording, setIsRecording] = useState(false);
   const [lastHeight, setLastHeight] = useState(0)
-  const toggleRecording = () => {
-    if (isRecording) {
-      console.log(dataPoints)
-      let lastVelocity = 0
-      let velocities: number[] = []
-      let lastPosition = 0
-      let positions: number[] = []
-      const dt = 1.0 / 60.0;
-      dataPoints.forEach((d, i) => {
-        lastVelocity += (-d * dt)
-        velocities.push(lastVelocity)
-        lastPosition += (lastVelocity * dt)
-        positions.push(lastPosition)
-      })
-      setLastHeight(Math.max(...positions) - Math.min(...positions))
-      setData(dataPoints.map((z, i) => ({ x: i, y: z })));
-    }
-    dataPoints = [];
-    setIsRecording(!isRecording);
-  }
   return (
     <main className={`flex min-h-screen flex-col items-center justify-between`}>
-      <button onClick={getAccel}>Get Accelerometer</button>
-      <button onClick={toggleRecording}>{isRecording ? 'Stop recording' : 'Start recording'}</button>
+      <button onClick={getAccel}>Start</button>
       <h1>{lastHeight ?? ''}</h1>
       <ResponsiveContainer width="100%" height={400}>
         <ScatterChart>
