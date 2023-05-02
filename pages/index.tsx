@@ -26,6 +26,10 @@ type Throw = {
   totalHeight: number;
   accelerationData: number[];
   maxAcceleration: number;
+  totalRotation: {
+    alpha: number;
+    beta: number;
+  };
   acceleratingIndex: number;
   inFlightIndex: number;
   completeIndex: number;
@@ -110,9 +114,10 @@ function getMaxHeight(timeInAir: number): number {
 const round = (float: number | null | undefined) =>
   Number((float ?? 0).toFixed(1));
 
-let accelerations: number[] = [];
-
-const detectThrow = (accelerations: readonly number[]): Throw | null => {
+const detectThrow = (
+  accelerations: readonly number[],
+  orientations: readonly Orientation[]
+): Throw | null => {
   let status: 'waiting' | 'accelerating' | 'in_flight' | 'complete' = 'waiting';
   let startIndex = 0;
   let acceleratingIndex = 0;
@@ -137,19 +142,47 @@ const detectThrow = (accelerations: readonly number[]): Throw | null => {
       completeIndex = i;
       // capture an extra .5s
     } else if (status === 'complete' && i - completeIndex > 30) {
-      let minimumAcceleration = accelerations[inFlightIndex];
-      // const window = inFlightIndex + 60;
-      // for (let j = inFlightIndex; j < window; j++) {
-      //   if (accelerations[j] < minimumAcceleration) {
-      //     inFlightIndex = j;
-      //     minimumAcceleration = accelerations[j];
-      //   }
-      // }
       const correctionFactorSeconds = 0;
       const rawDurationSeconds = (completeIndex - inFlightIndex) / 60; // 60Hz TODO adjust for different intervals
       // need to play with this - the graph looks correct, but the duration is off
-      const durationInSeconds = Math.max(rawDurationSeconds - correctionFactorSeconds, 0);
+      const durationInSeconds = Math.max(
+        rawDurationSeconds - correctionFactorSeconds,
+        0
+      );
       const height = getMaxHeight(durationInSeconds);
+      const orientationsInWindow = orientations.slice(
+        inFlightIndex,
+        completeIndex
+      );
+      const differenceInAngles = (a: number, b: number) => {
+        let diff = a - b;
+        if (diff < 0) {
+          diff += 360;
+        }
+        if (diff > 180) {
+          diff = 360 - diff;
+        }
+        return diff;
+      };
+      const rotationDiffs = orientationsInWindow.map((orientation, i) => {
+        if (i === 0) {
+          return [0, 0];
+        }
+        const lastOrientation = orientationsInWindow[i - 1];
+        return [
+          differenceInAngles(
+            Number(orientation.alpha.toFixed(0)),
+            Number(lastOrientation.alpha.toFixed(0))
+          ),
+          differenceInAngles(
+            Number(orientation.beta.toFixed(0)) + 180,
+            Number(lastOrientation.beta.toFixed(0)) + 180
+          ),
+        ];
+      });
+      const rotationScore = rotationDiffs.reduce((acc, diff) => {
+        return acc + diff[0] + diff[1];
+      }, 0);
       debugger;
       return {
         duration: durationInSeconds,
@@ -161,6 +194,14 @@ const detectThrow = (accelerations: readonly number[]): Throw | null => {
         acceleratingIndex: acceleratingIndex - startIndex,
         inFlightIndex: inFlightIndex - startIndex,
         completeIndex: completeIndex - startIndex,
+        totalRotation: {
+          alpha: rotationDiffs.reduce((acc, diff) => {
+            return acc + diff[0];
+          }, 0),
+          beta: rotationDiffs.reduce((acc, diff) => {
+            return acc + diff[1];
+          }, 0) / 2, // TODO this makes no sense
+        },
       };
     }
   }
@@ -176,11 +217,24 @@ const Game = () => {
       DeviceMotionEvent as unknown as DeviceMotionEventiOS
     ).requestPermission;
     const iOS = typeof requestPermission === 'function';
+    let accelerations: number[] = [];
+    let orientations: Orientation[] = [];
     if (iOS && !started) {
       const response = await requestPermission();
       if (response === 'granted') {
+        const maxWindowSize = 300; // 5 seconds, enough for a 100 foot throw
         localStorage.setItem('airtimeHasLocationAccess', 'true');
         setStarted(true);
+        window.addEventListener('deviceorientation', (event) => {
+          orientations.push({
+            alpha: event.alpha ?? 0,
+            beta: event.beta ?? 0,
+            gamma: event.gamma ?? 0,
+          });
+          if (orientations.length > maxWindowSize) {
+            orientations.shift();
+          }
+        });
         window.addEventListener('devicemotion', (event) => {
           const acceleration: vec3 = [
             round(event.acceleration?.x),
@@ -201,14 +255,14 @@ const Game = () => {
             acceleration,
             gravityVector
           );
-          // 5 seconds, enough for a 100 foot throw
+
           const zAccel = rotatedAcceleration[2] * -1;
           accelerations.push(zAccel);
-          if (accelerations.length > 300) {
+          if (accelerations.length > maxWindowSize) {
             accelerations.shift();
           }
 
-          let detectedThrow = detectThrow(accelerations);
+          let detectedThrow = detectThrow(accelerations, orientations);
           if (detectedThrow) {
             accelerations = [];
             if (detectedThrow.totalHeight > 1) {
@@ -238,6 +292,7 @@ const Game = () => {
         <>
           <h1>{`${lastThrow.duration.toFixed(2)} seconds in the air`}</h1>
           <h1>{`${lastThrow.totalHeight.toFixed(1)} foot throw!`}</h1>
+          <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(1)} vertical flips!`}</h1>
           <h1>{`Power score: ${lastThrow.maxAcceleration.toFixed(2)}`}</h1>
           <h1>
             {lastThrow.acceleratingIndex} {lastThrow.inFlightIndex}{' '}
@@ -258,7 +313,10 @@ const Game = () => {
                 stroke="yellow"
               />
               <ReferenceLine x={lastThrow.inFlightIndex / 60.0} stroke="red" />
-              <ReferenceLine x={lastThrow.completeIndex / 60.0} stroke="green" />
+              <ReferenceLine
+                x={lastThrow.completeIndex / 60.0}
+                stroke="green"
+              />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} />
               <Scatter
                 data={lastThrow.accelerationData.map((a, t) => ({
