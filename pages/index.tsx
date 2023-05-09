@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CartesianGrid,
   XAxis,
@@ -10,6 +10,9 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { vec3 } from 'gl-matrix';
+import Head from 'next/head';
+import { Switch } from '@/components/Switch';
+import Confetti from 'react-confetti';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -101,6 +104,19 @@ const handleMotionRosettaCode = (
   ];
 };
 
+const requestPermissionWrapper = async (callback: () => void) => {
+  const requestPermission = (
+    DeviceMotionEvent as unknown as DeviceMotionEventiOS
+  ).requestPermission;
+  const iOS = typeof requestPermission === 'function';
+  if (iOS) {
+    const response = await requestPermission();
+    if (response === 'granted') {
+      callback();
+    }
+  }
+};
+
 // Function to calculate max height
 function getMaxHeight(timeInAir: number): number {
   let t = timeInAir / 2;
@@ -113,6 +129,21 @@ function getMaxHeight(timeInAir: number): number {
 
 const round = (float: number | null | undefined) =>
   Number((float ?? 0).toFixed(1));
+
+type ButtonProps = {
+  text: string;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+};
+const Button = ({ text, onClick, type }: ButtonProps) => (
+  <button
+    type={type ?? 'button'}
+    onClick={onClick}
+    className="rounded-md px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm bg-black"
+  >
+    {text}
+  </button>
+);
 
 const detectThrow = (
   accelerations: readonly number[],
@@ -144,7 +175,6 @@ const detectThrow = (
     } else if (status === 'complete' && i - completeIndex > 30) {
       const correctionFactorSeconds = 0;
       const rawDurationSeconds = (completeIndex - inFlightIndex) / 60; // 60Hz TODO adjust for different intervals
-      // need to play with this - the graph looks correct, but the duration is off
       const durationInSeconds = Math.max(
         rawDurationSeconds - correctionFactorSeconds,
         0
@@ -180,10 +210,6 @@ const detectThrow = (
           ),
         ];
       });
-      const rotationScore = rotationDiffs.reduce((acc, diff) => {
-        return acc + diff[0] + diff[1];
-      }, 0);
-      debugger;
       return {
         duration: durationInSeconds,
         totalHeight: height,
@@ -198,9 +224,10 @@ const detectThrow = (
           alpha: rotationDiffs.reduce((acc, diff) => {
             return acc + diff[0];
           }, 0),
-          beta: rotationDiffs.reduce((acc, diff) => {
-            return acc + diff[1];
-          }, 0) / 2, // TODO this makes no sense
+          beta:
+            rotationDiffs.reduce((acc, diff) => {
+              return acc + diff[1];
+            }, 0) / 2, // TODO this makes no sense
         },
       };
     }
@@ -208,139 +235,269 @@ const detectThrow = (
   return null;
 };
 
-const Game = () => {
-  const [started, setStarted] = useState(false);
-  const [lastThrow, setLastThrow] = useState<Throw | null>(null);
+type GameProps = {
+  playerInfo: PlayerInfo;
+};
 
-  const getAccel = useCallback(async () => {
-    const requestPermission = (
-      DeviceMotionEvent as unknown as DeviceMotionEventiOS
-    ).requestPermission;
-    const iOS = typeof requestPermission === 'function';
+const Game = ({ playerInfo }: GameProps) => {
+  const [lastThrow, setLastThrow] = useState<Throw | null>(null);
+  const [showGraphs, setShowGraphs] = useState(false);
+
+  useEffect(() => {
     let accelerations: number[] = [];
     let orientations: Orientation[] = [];
-    if (iOS && !started) {
-      const response = await requestPermission();
-      if (response === 'granted') {
-        const maxWindowSize = 300; // 5 seconds, enough for a 100 foot throw
-        localStorage.setItem('airtimeHasLocationAccess', 'true');
-        setStarted(true);
-        window.addEventListener('deviceorientation', (event) => {
-          orientations.push({
-            alpha: event.alpha ?? 0,
-            beta: event.beta ?? 0,
-            gamma: event.gamma ?? 0,
-          });
-          if (orientations.length > maxWindowSize) {
-            orientations.shift();
-          }
-        });
-        window.addEventListener('devicemotion', (event) => {
-          const acceleration: vec3 = [
-            round(event.acceleration?.x),
-            round(event.acceleration?.y),
-            round(event.acceleration?.z),
-          ];
-          const accelerationIncludingGravity: vec3 = [
-            round(event.accelerationIncludingGravity?.x),
-            round(event.accelerationIncludingGravity?.y),
-            round(event.accelerationIncludingGravity?.z),
-          ];
-          const gravityVector = vec3.subtract(
-            vec3.create(),
-            accelerationIncludingGravity,
-            acceleration
-          );
-          const rotatedAcceleration = handleMotionRosettaCode(
-            acceleration,
-            gravityVector
-          );
-
-          const zAccel = rotatedAcceleration[2] * -1;
-          accelerations.push(zAccel);
-          if (accelerations.length > maxWindowSize) {
-            accelerations.shift();
-          }
-
-          let detectedThrow = detectThrow(accelerations, orientations);
-          if (detectedThrow) {
-            accelerations = [];
-            if (detectedThrow.totalHeight > 1) {
-              setLastThrow(detectedThrow);
-            }
-          }
-        });
-      }
-    }
-  }, [started]);
-  useEffect(() => {
-    const fetchData = async () => {
-      if (localStorage.getItem('airtimeHasLocationAccess') === 'true') {
-        getAccel();
+    const maxWindowSize = 240; // 3.5 seconds, enough for a 50 foot throw, plus a .5s buffer at the end
+    const orientationListener = (event: DeviceOrientationEvent) => {
+      orientations.push({
+        alpha: event.alpha ?? 0,
+        beta: event.beta ?? 0,
+        gamma: event.gamma ?? 0,
+      });
+      if (orientations.length > maxWindowSize) {
+        orientations.shift();
       }
     };
-    // workaround for https://github.com/facebook/react/issues/24502
-    const id = setTimeout(() => fetchData(), 10);
-    return () => clearTimeout(id);
-  }, [getAccel]);
-  if (!started) {
-    return <button onClick={getAccel}>Start</button>;
-  }
+    const motionListener = (event: DeviceMotionEvent) => {
+      const acceleration: vec3 = [
+        round(event.acceleration?.x),
+        round(event.acceleration?.y),
+        round(event.acceleration?.z),
+      ];
+      const accelerationIncludingGravity: vec3 = [
+        round(event.accelerationIncludingGravity?.x),
+        round(event.accelerationIncludingGravity?.y),
+        round(event.accelerationIncludingGravity?.z),
+      ];
+      const gravityVector = vec3.subtract(
+        vec3.create(),
+        accelerationIncludingGravity,
+        acceleration
+      );
+      const rotatedAcceleration = handleMotionRosettaCode(
+        acceleration,
+        gravityVector
+      );
+
+      const zAccel = rotatedAcceleration[2] * -1;
+      accelerations.push(zAccel);
+      if (accelerations.length > maxWindowSize) {
+        accelerations.shift();
+      }
+
+      let detectedThrow = detectThrow(accelerations, orientations);
+      if (detectedThrow && !lastThrow) {
+        accelerations = [];
+        if (detectedThrow.totalHeight > 1) {
+          setLastThrow(detectedThrow);
+        }
+      }
+    };
+    requestPermissionWrapper(() => {
+      console.log('adding listeners');
+      window.addEventListener('deviceorientation', orientationListener);
+      window.addEventListener('devicemotion', motionListener);
+    });
+    return () => {
+      console.log('removing listeners');
+      window.removeEventListener('deviceorientation', orientationListener);
+      window.removeEventListener('devicemotion', motionListener);
+    };
+  }, []);
   return (
     <>
       {lastThrow ? (
-        <>
+        <div className="flex flex-col space-y-2 w-full px-2 items-center">
+          <Confetti
+            recycle={false}
+            colors={[
+              `#FFD700`,
+              `#FFC400`,
+              `#FFBF00`,
+              `#FFD56A`,
+              `#FFC107`,
+              `#FFB300`,
+              `#FFC87C`,
+              `#FFB90F`,
+              `#FFD42A`,
+              `#FFC300`,
+            ]}
+            numberOfPieces={Math.round(lastThrow.totalHeight * 100)}
+            confettiSource={{
+              x: 0,
+              y: -20,
+              h: 0,
+              w: document.body.clientWidth,
+            }}
+          />
           <h1>{`${lastThrow.duration.toFixed(2)} seconds in the air`}</h1>
           <h1>{`${lastThrow.totalHeight.toFixed(1)} foot throw!`}</h1>
-          <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(1)} vertical flips!`}</h1>
-          <h1>{`Power score: ${lastThrow.maxAcceleration.toFixed(2)}`}</h1>
-          <h1>
-            {lastThrow.acceleratingIndex} {lastThrow.inFlightIndex}{' '}
-            {lastThrow.completeIndex} ({lastThrow.accelerationData.length})
-          </h1>
-          <ResponsiveContainer width="100%" height={400}>
-            <ScatterChart margin={{ left: 20 }}>
-              <CartesianGrid />
-              <XAxis type="number" dataKey="x" name="time" unit="s" />
-              <YAxis
-                type="number"
-                dataKey="y"
-                name="acceleration"
-                unit="m/s^2"
-              />
-              <ReferenceLine
-                x={lastThrow.acceleratingIndex / 60.0}
-                stroke="yellow"
-              />
-              <ReferenceLine x={lastThrow.inFlightIndex / 60.0} stroke="red" />
-              <ReferenceLine
-                x={lastThrow.completeIndex / 60.0}
-                stroke="green"
-              />
-              <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-              <Scatter
-                data={lastThrow.accelerationData.map((a, t) => ({
-                  x: t / 60,
-                  y: a,
-                }))}
-                fill="#8884d8"
-              />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </>
+          <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
+            1
+          )} vertical flips!`}</h1>
+          <Button text="Throw again" onClick={() => setLastThrow(null)} />
+          <Button
+            text="Show graphs"
+            onClick={() => setShowGraphs(!showGraphs)}
+          />
+          {showGraphs && (
+            <ResponsiveContainer width="100%" height={400}>
+              <ScatterChart margin={{ left: 20 }}>
+                <CartesianGrid />
+                <XAxis type="number" dataKey="x" name="time" unit="s" />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  name="acceleration"
+                  unit="m/s^2"
+                />
+                <ReferenceLine
+                  x={lastThrow.acceleratingIndex / 60.0}
+                  stroke="yellow"
+                />
+                <ReferenceLine
+                  x={lastThrow.inFlightIndex / 60.0}
+                  stroke="red"
+                />
+                <ReferenceLine
+                  x={lastThrow.completeIndex / 60.0}
+                  stroke="green"
+                />
+                <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                <Scatter
+                  data={lastThrow.accelerationData.map((a, t) => ({
+                    x: t / 60,
+                    y: a,
+                  }))}
+                  fill="#8884d8"
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       ) : (
         <>
-          <h1>Throw your phone high into the sky!</h1>
+          <h1 className="text-md font-semibold">
+            Throw your phone high into the sky!
+          </h1>
         </>
       )}
     </>
   );
 };
 
-export default function Home() {
+type PlayerInfo = {
+  name: string;
+  hasCase: boolean;
+};
+
+const usePlayerInfo = () => {
+  // a react hook to retrieve the player's name and case status from local storage and also set it
+  const [playerInfo, setPlayerInfoInner] = useState<
+    PlayerInfo | null | undefined
+  >(undefined);
+  const setPlayerInfo = (info: PlayerInfo) => {
+    localStorage.setItem('airtimeName', info.name);
+    localStorage.setItem('airtimeHasCase', info.hasCase ? 'true' : 'false');
+    setPlayerInfoInner(info);
+  };
+  useEffect(() => {
+    const name = localStorage.getItem('airtimeName');
+    const hasCase = localStorage.getItem('airtimeHasCase');
+    if (name && hasCase) {
+      setPlayerInfoInner({
+        name,
+        hasCase: hasCase === 'true',
+      });
+    } else {
+      setPlayerInfoInner(null);
+    }
+  }, []);
+  return [playerInfo, setPlayerInfo] as const;
+};
+
+type WelcomeProps = {
+  onPlay: (name: string, hasCase: boolean) => void;
+};
+
+const Welcome = ({ onPlay }: WelcomeProps) => {
+  const [hasCase, setHasCase] = useState(false);
+  const [name, setName] = useState('');
+  const defaultSwitchLabel = 'Does your phone have a case?';
+  const [switchLabel, setSwitchLabel] = useState(defaultSwitchLabel);
+  const toggleCase = (newHasCase: boolean) => {
+    setHasCase(newHasCase);
+    if (!newHasCase) {
+      setSwitchLabel('Fuck yea 🤙');
+      setTimeout(() => setSwitchLabel(defaultSwitchLabel), 2000);
+    } else {
+      setSwitchLabel(defaultSwitchLabel);
+    }
+  };
+  // render a form to collect the player's name and a checkbox to see if their phone has a case
+  // when they submit the form, render the game
   return (
-    <main className={`flex min-h-screen flex-col items-center justify-between`}>
-      <Game />
+    <div className={`flex w-full min-h-screen flex-col items-center space-y-2`}>
+      <h1>High Phone ☝️</h1>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          localStorage.setItem('airtimeHasLocationAccess', 'true');
+          localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
+          localStorage.setItem('airtimeName', name);
+          requestPermissionWrapper(() => {
+            onPlay(name, hasCase);
+          });
+        }}
+        className="flex flex-col space-y-2"
+      >
+        <div>
+          <label
+            htmlFor="name"
+            className="block text-sm font-medium leading-6 text-gray-900"
+          >
+            Your name
+          </label>
+          <div>
+            <input
+              type="name"
+              name="name"
+              id="name"
+              className="block w-full rounded-md border border-black p-1.5 text-gray-900 shadow-sm placeholder:text-gray-400 sm:text-sm min-w-[300px]"
+              placeholder="Seeker of glory"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+        </div>
+        <label>
+          <Switch
+            label={switchLabel}
+            defaultValue={true}
+            onToggle={toggleCase}
+          />
+        </label>
+        <Button type="submit" text="START" />
+      </form>
+    </div>
+  );
+};
+
+export default function Home() {
+  const [playerInfo, setPlayerInfo] = usePlayerInfo();
+  return (
+    <main className={`mt-4 flex w-full min-h-screen flex-col items-center`}>
+      <Head>
+        <title>High Phone</title>
+        <link
+          rel="icon"
+          href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🆙</text></svg>"
+        />
+      </Head>
+      {playerInfo === null && (
+        <Welcome onPlay={(name, hasCase) => setPlayerInfo({ name, hasCase })} />
+      )}
+      {playerInfo && <Game playerInfo={playerInfo} />}
     </main>
   );
 }
