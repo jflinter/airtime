@@ -120,22 +120,6 @@ const requestMotionPermissions = async () => {
   return false;
 };
 
-const requestVideoStream = async () => {
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { exact: 'environment' },
-        frameRate: { ideal: 8, max: 8 },
-        width: { ideal: 320 },
-        height: { ideal: 240 },
-      },
-      audio: false,
-    });
-  } catch (err) {
-    return null;
-  }
-};
-
 const AutoScroller = () => {
   useEffect(() => {
     window.scrollTo(0, 1);
@@ -504,9 +488,12 @@ const usePlayerInfo = () => {
   const [playerInfo, setPlayerInfoInner] = useState<
     PlayerInfo | null | undefined
   >(undefined);
+  const updateLocalStorage = ({name, hasCase}: PlayerInfo) => {
+    localStorage.setItem('airtimeName', name);
+    localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
+  };
   const setPlayerInfo = (info: PlayerInfo) => {
-    localStorage.setItem('airtimeName', info.name);
-    localStorage.setItem('airtimeHasCase', info.hasCase ? 'true' : 'false');
+    updateLocalStorage(info)
     setPlayerInfoInner(info);
   };
   useEffect(() => {
@@ -521,7 +508,7 @@ const usePlayerInfo = () => {
       setPlayerInfoInner(null);
     }
   }, []);
-  return [playerInfo, setPlayerInfo] as const;
+  return [playerInfo, setPlayerInfo, updateLocalStorage] as const;
 };
 
 type WelcomeProps = {
@@ -529,7 +516,7 @@ type WelcomeProps = {
 };
 
 const Welcome = ({ onPlay }: WelcomeProps) => {
-  const [hasCase, setHasCase] = useState(false);
+  const [hasCase, setHasCase] = useState(true);
   const [name, setName] = useState('');
   const defaultSwitchLabel = 'Does your phone have a case?';
   const [switchLabel, setSwitchLabel] = useState(defaultSwitchLabel);
@@ -550,12 +537,8 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          localStorage.setItem('airtimeHasLocationAccess', 'true');
-          localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
-          localStorage.setItem('airtimeName', name);
           const permissionResult = await requestMotionPermissions();
           if (permissionResult) {
-            await requestVideoStream();
             onPlay(name, hasCase);
           }
         }}
@@ -591,7 +574,7 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
 };
 
 export default function Home() {
-  const [playerInfo, setPlayerInfo] = usePlayerInfo();
+  const [playerInfo, setPlayerInfo, updateLocalStorage] = usePlayerInfo();
   return (
     <main className={`mt-4 flex w-full min-h-screen flex-col items-center`}>
       <Head>
@@ -602,7 +585,11 @@ export default function Home() {
         />
       </Head>
       {playerInfo === null && (
-        <Welcome onPlay={(name, hasCase) => setPlayerInfo({ name, hasCase })} />
+        <Welcome onPlay={(name, hasCase) => {
+          updateLocalStorage({ name, hasCase });
+          // reload to avoid the "shake to undo" bug
+          window.location.reload();
+        }} />
       )}
       {playerInfo && <Game playerInfo={playerInfo} />}
     </main>
