@@ -9,8 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@ffmpeg/core": "^0.11.0",
-    "@ffmpeg/ffmpeg": "^0.11.6",
     "@headlessui/react": "^1.7.13",
     "@tailwindcss/forms": "^0.5.3",
     "@types/node": "18.15.13",
@@ -21,7 +19,6 @@
     "classnames": "^2.3.2",
     "eslint": "8.39.0",
     "eslint-config-next": "13.3.1",
-    "gl-matrix": "^3.4.3",
     "next": "13.3.1",
     "postcss": "8.4.23",
     "react": "18.2.0",

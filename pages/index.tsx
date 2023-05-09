@@ -9,12 +9,10 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import { vec3 } from 'gl-matrix';
 import Head from 'next/head';
 import { Switch } from '@/components/Switch';
 import Confetti from 'react-confetti';
 import useMediaRecorder from '@/components/useMediaRecorder';
-// import { truncateVideo } from '@/components/truncateVideo';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -40,10 +38,12 @@ type Throw = {
   completeIndex: number;
 };
 
+type Vec3 = readonly [number, number, number];
+
 const handleMotionRosettaCode = (
-  acceleration: vec3,
-  gravityVector: vec3
-): vec3 => {
+  acceleration: Vec3,
+  gravityVector: Vec3
+): Vec3 => {
   function norm(v: number[]) {
     return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
   }
@@ -123,9 +123,9 @@ const requestMotionPermissions = async () => {
 const AutoScroller = () => {
   useEffect(() => {
     window.scrollTo(0, 1);
-  })
-  return <></>
-}
+  });
+  return <></>;
+};
 
 // Function to calculate max height
 function getMaxHeight(timeInAir: number): number {
@@ -183,10 +183,10 @@ const detectThrow = (
       const averageAcceleration =
         accelerations.slice(inFlightIndex, i).reduce((a, b) => a + b, 0) /
         (i - inFlightIndex);
-      // if (averageAcceleration < -5) { // TODO reenable
-      status = 'complete';
-      completeIndex = i;
-      // }
+      if (averageAcceleration < -5) {
+        status = 'complete';
+        completeIndex = i;
+      }
       // capture an extra .5s
     } else if (status === 'complete' && i - completeIndex > 30) {
       const correctionFactorSeconds = 0;
@@ -285,7 +285,6 @@ const Game = ({ playerInfo }: GameProps) => {
       alert(JSON.stringify(error));
     },
   });
-  console.log(videoStatus);
   const chunksRef = useRef<Blob[]>([]);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
@@ -306,21 +305,21 @@ const Game = ({ playerInfo }: GameProps) => {
       }
     };
     const motionListener = (event: DeviceMotionEvent) => {
-      const acceleration: vec3 = [
+      const acceleration: Vec3 = [
         round(event.acceleration?.x),
         round(event.acceleration?.y),
         round(event.acceleration?.z),
       ];
-      const accelerationIncludingGravity: vec3 = [
+      const accelerationIncludingGravity: Vec3 = [
         round(event.accelerationIncludingGravity?.x),
         round(event.accelerationIncludingGravity?.y),
         round(event.accelerationIncludingGravity?.z),
       ];
-      const gravityVector = vec3.subtract(
-        vec3.create(),
-        accelerationIncludingGravity,
-        acceleration
-      );
+      const gravityVector = [
+        accelerationIncludingGravity[0] - acceleration[0],
+        accelerationIncludingGravity[1] - acceleration[1],
+        accelerationIncludingGravity[2] - acceleration[2],
+      ] as const;
       const rotatedAcceleration = handleMotionRosettaCode(
         acceleration,
         gravityVector
@@ -346,7 +345,6 @@ const Game = ({ playerInfo }: GameProps) => {
     const timeout = setTimeout(() => {
       requestMotionPermissions().then((result) => {
         if (result) {
-          console.log('adding listeners');
           window.addEventListener('deviceorientation', orientationListener);
           window.addEventListener('devicemotion', motionListener);
         }
@@ -354,7 +352,6 @@ const Game = ({ playerInfo }: GameProps) => {
     }, 10);
 
     return () => {
-      console.log('removing listeners');
       clearTimeout(timeout);
       accelerations = [];
       orientations = [];
@@ -399,12 +396,25 @@ const Game = ({ playerInfo }: GameProps) => {
               onClick={() => {
                 setLastThrow(null);
                 setVideoBlob(null);
-                setRecordVideo(false)
+                setRecordVideo(false);
               }}
             />
             <Button
-              text="Show graphs"
-              onClick={() => setShowGraphs(!showGraphs)}
+              text="Share"
+              onClick={() => {
+                const shareData: ShareData = {
+                  text: `I threw my phone ${lastThrow.totalHeight.toFixed(
+                    1
+                  )} feet in the air on highphone!`,
+                  url: 'https://highphone.app',
+                  files: videoBlob
+                    ? [new File([videoBlob], 'phone_journey.mp4', {
+                        type: videoBlob.type,
+                      })]
+                    : undefined,
+                };
+                navigator.share(shareData);
+              }}
             />
           </div>
           {videoBlob && (
@@ -419,6 +429,10 @@ const Game = ({ playerInfo }: GameProps) => {
               />
             </>
           )}
+          <Button
+            text={showGraphs ? 'Hide graphs' : 'Show graphs'}
+            onClick={() => setShowGraphs(!showGraphs)}
+          />
           {showGraphs && (
             <ResponsiveContainer width="100%" height={400}>
               <ScatterChart margin={{ left: 20 }}>
@@ -488,12 +502,12 @@ const usePlayerInfo = () => {
   const [playerInfo, setPlayerInfoInner] = useState<
     PlayerInfo | null | undefined
   >(undefined);
-  const updateLocalStorage = ({name, hasCase}: PlayerInfo) => {
+  const updateLocalStorage = ({ name, hasCase }: PlayerInfo) => {
     localStorage.setItem('airtimeName', name);
     localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
   };
   const setPlayerInfo = (info: PlayerInfo) => {
-    updateLocalStorage(info)
+    updateLocalStorage(info);
     setPlayerInfoInner(info);
   };
   useEffect(() => {
@@ -532,7 +546,7 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
   // render a form to collect the player's name and a checkbox to see if their phone has a case
   // when they submit the form, render the game
   return (
-    <div className={`flex w-full min-h-screen flex-col items-center space-y-2`}>
+    <div className={`flex w-full flex-col items-center space-y-2`}>
       <h1>highphone ☝️</h1>
       <form
         onSubmit={async (e) => {
@@ -576,7 +590,7 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
 export default function Home() {
   const [playerInfo, setPlayerInfo, updateLocalStorage] = usePlayerInfo();
   return (
-    <main className={`mt-4 flex w-full min-h-screen flex-col items-center`}>
+    <main className={`pt-4 flex w-full flex-col items-center`}>
       <Head>
         <title>highphone</title>
         <link
@@ -585,11 +599,13 @@ export default function Home() {
         />
       </Head>
       {playerInfo === null && (
-        <Welcome onPlay={(name, hasCase) => {
-          updateLocalStorage({ name, hasCase });
-          // reload to avoid the "shake to undo" bug
-          window.location.reload();
-        }} />
+        <Welcome
+          onPlay={(name, hasCase) => {
+            updateLocalStorage({ name, hasCase });
+            // reload to avoid the "shake to undo" bug
+            window.location.reload();
+          }}
+        />
       )}
       {playerInfo && <Game playerInfo={playerInfo} />}
     </main>
