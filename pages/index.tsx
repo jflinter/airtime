@@ -180,12 +180,17 @@ const detectThrow = (
     // if we are in flight and experience a substantial upward acceleration
     else if (status === 'in_flight' && a > threshold) {
       // anti cheat - we should be accelerating downwards the whole time. Not -9.8 because flips confuse the accelerometer.
-      const averageAcceleration =
-        accelerations.slice(inFlightIndex, i).reduce((a, b) => a + b, 0) /
-        (i - inFlightIndex);
-      if (averageAcceleration < -5) {
-        status = 'complete';
-        completeIndex = i;
+      if (i - inFlightIndex > 22) {
+        // slice off 10 frames on either side to account for outlier data
+        const startIndex = inFlightIndex + 10;
+        const endIndex = i - 10;
+        const averageAcceleration =
+          accelerations.slice(startIndex, endIndex).reduce((a, b) => a + b, 0) /
+          (endIndex - startIndex);
+        if (averageAcceleration < -5) {
+          status = 'complete';
+          completeIndex = i;
+        }
       }
       // capture an extra .5s
     } else if (status === 'complete' && i - completeIndex > 30) {
@@ -272,9 +277,9 @@ const Game = ({ playerInfo }: GameProps) => {
       audio: false,
       video: {
         facingMode: { exact: 'environment' },
-        frameRate: { ideal: 8, max: 8 },
-        height: { ideal: 320 },
-        width: { ideal: 320 },
+        frameRate: { ideal: 16, max: 16 },
+        height: { ideal: 640 },
+        width: { ideal: 640 },
       },
     },
     onStop: async (blob) => {
@@ -401,7 +406,7 @@ const Game = ({ playerInfo }: GameProps) => {
             />
             <Button
               text="Share"
-              onClick={() => {
+              onClick={async () => {
                 const shareData: ShareData = {
                   text: `I threw my phone ${lastThrow.totalHeight.toFixed(
                     1
@@ -413,7 +418,11 @@ const Game = ({ playerInfo }: GameProps) => {
                       })]
                     : undefined,
                 };
-                navigator.share(shareData);
+                try {
+                  await navigator.share(shareData);
+                } catch (error) {
+                  console.log(error)
+                }
               }}
             />
           </div>
