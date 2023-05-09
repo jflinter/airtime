@@ -264,13 +264,7 @@ const Game = ({ playerInfo }: GameProps) => {
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
   const [recordVideo, setRecordVideo] = useState(false);
-  const {
-    status: videoStatus,
-    error: videoError,
-    stopRecording,
-    getMediaStream,
-    startRecording,
-  } = useMediaRecorder({
+  const { stopRecording, getMediaStream, startRecording } = useMediaRecorder({
     recordScreen: false,
     blobOptions: { type: 'video/mp4' },
     mediaStreamConstraints: {
@@ -392,9 +386,9 @@ const Game = ({ playerInfo }: GameProps) => {
           />
           <h1>{`${lastThrow.duration.toFixed(2)} seconds in the air`}</h1>
           <h1>{`${lastThrow.totalHeight.toFixed(1)} foot throw!`}</h1>
-          <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
+          {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
             1
-          )} vertical flips!`}</h1>
+          )} vertical flips!`}</h1> */}
           <div className="flex flex-row space-x-2">
             <Button
               text="Throw again"
@@ -413,15 +407,17 @@ const Game = ({ playerInfo }: GameProps) => {
                   )} feet in the air on highphone!`,
                   url: 'https://highphone.app',
                   files: videoBlob
-                    ? [new File([videoBlob], 'phone_journey.mp4', {
-                        type: videoBlob.type,
-                      })]
+                    ? [
+                        new File([videoBlob], 'phone_journey.mp4', {
+                          type: videoBlob.type,
+                        }),
+                      ]
                     : undefined,
                 };
                 try {
                   await navigator.share(shareData);
                 } catch (error) {
-                  console.log(error)
+                  console.log(error);
                 }
               }}
             />
@@ -601,11 +597,105 @@ export default function Home() {
   return (
     <main className={`pt-4 flex w-full flex-col items-center`}>
       <Head>
-        <title>highphone</title>
+        <title>high phone</title>
+        <meta
+          name="description"
+          content="send your phone on an incredible journey"
+        />
+        <meta property="og:title" content="highphone" />
+        <meta
+          property="og:description"
+          content="send your phone on an incredible journey"
+        />
+        <meta
+          property="og:image"
+          content="https://www.highph.one/highphone-logo.png"
+        />
+        <meta property="og:url" content="https://www.highph.one" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="highphone" />
+        <meta
+          name="twitter:description"
+          content="send your phone on an incredible journey"
+        />
+        <meta
+          name="twitter:image"
+          content="https://www.highph.one/highphone-logo.png"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <link
+          rel="apple-touch-icon"
+          sizes="57x57"
+          href="/apple-icon-57x57.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="60x60"
+          href="/apple-icon-60x60.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="72x72"
+          href="/apple-icon-72x72.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="76x76"
+          href="/apple-icon-76x76.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="114x114"
+          href="/apple-icon-114x114.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="120x120"
+          href="/apple-icon-120x120.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="144x144"
+          href="/apple-icon-144x144.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="152x152"
+          href="/apple-icon-152x152.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="180x180"
+          href="/apple-icon-180x180.png"
+        />
         <link
           rel="icon"
-          href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🆙</text></svg>"
+          type="image/png"
+          sizes="192x192"
+          href="/android-icon-192x192.png"
         />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/favicon-32x32.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="96x96"
+          href="/favicon-96x96.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="16x16"
+          href="/favicon-16x16.png"
+        />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="msapplication-TileColor" content="#ffffff" />
+        <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
+        <meta name="theme-color" content="#ffffff" />
       </Head>
       {playerInfo === null && (
         <Welcome
