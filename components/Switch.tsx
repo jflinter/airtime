@@ -1,17 +1,14 @@
-import { useState } from 'react';
 import { Switch as HeadlessSwitch } from '@headlessui/react';
 import classNames from 'classnames';
 
 type Props = {
   label: string;
-  defaultValue: boolean;
+  on: boolean;
   onToggle: (enabled: boolean) => void;
 }
 
-export const Switch = ({label, onToggle, defaultValue}: Props) => {
-  const [enabled, setEnabled] = useState(defaultValue);
+export const Switch = ({label, onToggle, on}: Props) => {
   const handleToggle = (enabled: boolean) => {
-    setEnabled(enabled);
     onToggle(enabled);
   };
 
@@ -30,17 +27,17 @@ export const Switch = ({label, onToggle, defaultValue}: Props) => {
         </HeadlessSwitch.Label>
       </span>
       <HeadlessSwitch
-        checked={enabled}
+        checked={on}
         onChange={handleToggle}
         className={classNames(
-          enabled ? 'bg-black' : 'bg-gray-200',
+          on ? 'bg-black' : 'bg-gray-200',
           'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2'
         )}
       >
         <span
           aria-hidden="true"
           className={classNames(
-            enabled ? 'translate-x-5' : 'translate-x-0',
+            on ? 'translate-x-5' : 'translate-x-0',
             'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out'
           )}
         />
