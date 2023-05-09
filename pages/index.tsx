@@ -439,7 +439,7 @@ const Game = ({ playerInfo }: GameProps) => {
             </>
           )}
           <Button
-            text={showGraphs ? 'Hide graphs' : 'Show graphs'}
+            text={showGraphs ? 'Hide debug data' : 'Show debug data'}
             onClick={() => setShowGraphs(!showGraphs)}
           />
           {showGraphs && (
