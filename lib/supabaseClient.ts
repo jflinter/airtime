@@ -10,6 +10,7 @@ export type LeaderboardEntry = {
   name: string;
   durationMs: number;
   date: Date;
+  playerId: string;
 };
 
 export type ScoreRequest = {
@@ -36,12 +37,16 @@ export const createScore = async ({
     .single();
 };
 
-export const fetchScores = async (): Promise<LeaderboardEntry[]> => {
+export const fetchScores = async (
+  hasCase: boolean
+): Promise<LeaderboardEntry[]> => {
   return (
     (await supabase
       .from('scores')
       .select('*')
-      .order('duration_ms', { ascending: true })
+      .order('duration_ms', { ascending: false })
+      .eq('has_case', hasCase)
+      .limit(100)
       .then(({ data }) => {
         if (data) {
           return data.map((d) => {
@@ -50,6 +55,7 @@ export const fetchScores = async (): Promise<LeaderboardEntry[]> => {
               name: d.player_name,
               durationMs: d.duration_ms,
               date: new Date(d.created_at),
+              playerId: d.player_id,
             };
           });
         }

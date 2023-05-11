@@ -14,6 +14,9 @@ import Confetti from 'react-confetti';
 import useMediaRecorder from '@/components/useMediaRecorder';
 import { heightFromSeconds } from '@/lib/heightFromSeconds';
 import { createScore } from '@/lib/supabaseClient';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { PlayerInfo, usePlayerInfo } from '@/lib/usePlayerInfo';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -135,12 +138,14 @@ type ButtonProps = {
   text: string;
   onClick?: () => void;
   type?: 'button' | 'submit';
+  disabled?: boolean;
 };
-const Button = ({ text, onClick, type }: ButtonProps) => (
+const Button = ({ text, onClick, type, disabled }: ButtonProps) => (
   <button
     type={type ?? 'button'}
     onClick={onClick}
     className="rounded-md px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm bg-black"
+    disabled={!!disabled}
   >
     {text}
   </button>
@@ -252,6 +257,7 @@ type GameProps = {
 };
 
 const Game = ({ playerInfo }: GameProps) => {
+  const router = useRouter();
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
   const [recordVideo, setRecordVideo] = useState(false);
@@ -381,6 +387,9 @@ const Game = ({ playerInfo }: GameProps) => {
               w: document.body.clientWidth,
             }}
           />
+          <h1 className="text-md font-semibold">
+            Your phone&apos;s incredible journey
+          </h1>
           <h1>{`${(lastThrow.durationMs / 1000).toFixed(
             2
           )} seconds in the air`}</h1>
@@ -388,7 +397,7 @@ const Game = ({ playerInfo }: GameProps) => {
           {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
             1
           )} vertical flips!`}</h1> */}
-          <div className="flex flex-row space-x-2">
+          <div className="flex flex-col space-y-2 w-full">
             <Button
               text="Throw again"
               onClick={() => {
@@ -420,57 +429,58 @@ const Game = ({ playerInfo }: GameProps) => {
                 }
               }}
             />
+            <Button text="Leaderboard" onClick={() => router.push('/fame')} />
+            {videoBlob && (
+              <>
+                <video
+                  src={URL.createObjectURL(videoBlob)}
+                  width={320}
+                  height={320}
+                  autoPlay
+                  playsInline
+                  loop
+                />
+              </>
+            )}
+            <Button
+              text={showGraphs ? 'Hide debug data' : 'Show debug data'}
+              onClick={() => setShowGraphs(!showGraphs)}
+            />
+            {showGraphs && (
+              <ResponsiveContainer width="100%" height={400}>
+                <ScatterChart margin={{ left: 20 }}>
+                  <CartesianGrid />
+                  <XAxis type="number" dataKey="x" name="time" unit="s" />
+                  <YAxis
+                    type="number"
+                    dataKey="y"
+                    name="acceleration"
+                    unit="m/s^2"
+                  />
+                  <ReferenceLine
+                    x={lastThrow.acceleratingIndex / 60.0}
+                    stroke="yellow"
+                  />
+                  <ReferenceLine
+                    x={lastThrow.inFlightIndex / 60.0}
+                    stroke="red"
+                  />
+                  <ReferenceLine
+                    x={lastThrow.completeIndex / 60.0}
+                    stroke="green"
+                  />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                  <Scatter
+                    data={lastThrow.accelerationData.map((a, t) => ({
+                      x: t / 60,
+                      y: a,
+                    }))}
+                    fill="#8884d8"
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            )}
           </div>
-          {videoBlob && (
-            <>
-              <video
-                src={URL.createObjectURL(videoBlob)}
-                width={320}
-                height={320}
-                autoPlay
-                playsInline
-                loop
-              />
-            </>
-          )}
-          <Button
-            text={showGraphs ? 'Hide debug data' : 'Show debug data'}
-            onClick={() => setShowGraphs(!showGraphs)}
-          />
-          {showGraphs && (
-            <ResponsiveContainer width="100%" height={400}>
-              <ScatterChart margin={{ left: 20 }}>
-                <CartesianGrid />
-                <XAxis type="number" dataKey="x" name="time" unit="s" />
-                <YAxis
-                  type="number"
-                  dataKey="y"
-                  name="acceleration"
-                  unit="m/s^2"
-                />
-                <ReferenceLine
-                  x={lastThrow.acceleratingIndex / 60.0}
-                  stroke="yellow"
-                />
-                <ReferenceLine
-                  x={lastThrow.inFlightIndex / 60.0}
-                  stroke="red"
-                />
-                <ReferenceLine
-                  x={lastThrow.completeIndex / 60.0}
-                  stroke="green"
-                />
-                <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                <Scatter
-                  data={lastThrow.accelerationData.map((a, t) => ({
-                    x: t / 60,
-                    y: a,
-                  }))}
-                  fill="#8884d8"
-                />
-              </ScatterChart>
-            </ResponsiveContainer>
-          )}
         </div>
       ) : (
         <>
@@ -494,43 +504,6 @@ const Game = ({ playerInfo }: GameProps) => {
       )}
     </>
   );
-};
-
-type PlayerInfo = {
-  name: string;
-  hasCase: boolean;
-  playerId: string;
-};
-
-const usePlayerInfo = () => {
-  // a react hook to retrieve the player's name and case status from local storage and also set it
-  const [playerInfo, setPlayerInfoInner] = useState<
-    PlayerInfo | null | undefined
-  >(undefined);
-  const updateLocalStorage = ({ name, hasCase, playerId }: PlayerInfo) => {
-    localStorage.setItem('airtimeName', name);
-    localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
-    localStorage.setItem('airtimePlayerId', playerId);
-  };
-  const setPlayerInfo = (info: PlayerInfo) => {
-    updateLocalStorage(info);
-    setPlayerInfoInner(info);
-  };
-  useEffect(() => {
-    const name = localStorage.getItem('airtimeName');
-    const hasCase = localStorage.getItem('airtimeHasCase');
-    const playerId = localStorage.getItem('airtimePlayerId');
-    if (name || hasCase) {
-      setPlayerInfoInner({
-        name: name ?? '',
-        hasCase: hasCase === 'true',
-        playerId: playerId ?? '',
-      });
-    } else {
-      setPlayerInfoInner(null);
-    }
-  }, []);
-  return [playerInfo, setPlayerInfo, updateLocalStorage] as const;
 };
 
 type WelcomeProps = {
@@ -589,7 +562,7 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
         <label>
           <Switch label={switchLabel} on={hasCase} onToggle={toggleCase} />
         </label>
-        <Button type="submit" text="START" />
+        <Button type="submit" text="START" disabled={name === ''} />
       </form>
     </div>
   );
