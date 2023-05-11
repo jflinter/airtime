@@ -9,10 +9,11 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import Head from 'next/head';
 import { Switch } from '@/components/Switch';
 import Confetti from 'react-confetti';
 import useMediaRecorder from '@/components/useMediaRecorder';
+import { heightFromSeconds } from '@/lib/heightFromSeconds';
+import { createScore } from '@/lib/supabaseClient';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -25,7 +26,7 @@ type Orientation = {
 };
 
 type Throw = {
-  duration: number;
+  durationMs: number;
   totalHeight: number;
   accelerationData: number[];
   maxAcceleration: number;
@@ -127,16 +128,6 @@ const AutoScroller = () => {
   return <></>;
 };
 
-// Function to calculate max height
-function getMaxHeight(timeInAir: number): number {
-  let t = timeInAir / 2;
-  let g = 9.8; // m/s^2
-  let v0 = g * t;
-  let height = v0 * t + (-g * t * t) / 2;
-  let heightFt = height * 3.281;
-  return heightFt;
-}
-
 const round = (float: number | null | undefined) =>
   Number((float ?? 0).toFixed(1));
 
@@ -200,7 +191,7 @@ const detectThrow = (
         rawDurationSeconds - correctionFactorSeconds,
         0
       );
-      const height = getMaxHeight(durationInSeconds);
+      const height = heightFromSeconds(durationInSeconds);
       const orientationsInWindow = orientations.slice(
         inFlightIndex,
         completeIndex
@@ -232,7 +223,7 @@ const detectThrow = (
         ];
       });
       return {
-        duration: durationInSeconds,
+        durationMs: durationInSeconds * 1000,
         totalHeight: height,
         accelerationData: accelerations.slice(startIndex, i),
         maxAcceleration: Math.max(
@@ -337,6 +328,12 @@ const Game = ({ playerInfo }: GameProps) => {
         chunksRef.current = [];
         if (detectedThrow.totalHeight > 2) {
           setLastThrow(detectedThrow);
+          createScore({
+            playerId: playerInfo.playerId,
+            playerName: playerInfo.name,
+            hasCase: playerInfo.hasCase,
+            durationMs: detectedThrow.durationMs,
+          });
           stopRecording();
         }
       }
@@ -384,7 +381,9 @@ const Game = ({ playerInfo }: GameProps) => {
               w: document.body.clientWidth,
             }}
           />
-          <h1>{`${lastThrow.duration.toFixed(2)} seconds in the air`}</h1>
+          <h1>{`${(lastThrow.durationMs / 1000).toFixed(
+            2
+          )} seconds in the air`}</h1>
           <h1>{`${lastThrow.totalHeight.toFixed(1)} foot throw!`}</h1>
           {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
             1
@@ -500,6 +499,7 @@ const Game = ({ playerInfo }: GameProps) => {
 type PlayerInfo = {
   name: string;
   hasCase: boolean;
+  playerId: string;
 };
 
 const usePlayerInfo = () => {
@@ -507,9 +507,10 @@ const usePlayerInfo = () => {
   const [playerInfo, setPlayerInfoInner] = useState<
     PlayerInfo | null | undefined
   >(undefined);
-  const updateLocalStorage = ({ name, hasCase }: PlayerInfo) => {
+  const updateLocalStorage = ({ name, hasCase, playerId }: PlayerInfo) => {
     localStorage.setItem('airtimeName', name);
     localStorage.setItem('airtimeHasCase', hasCase ? 'true' : 'false');
+    localStorage.setItem('airtimePlayerId', playerId);
   };
   const setPlayerInfo = (info: PlayerInfo) => {
     updateLocalStorage(info);
@@ -518,10 +519,12 @@ const usePlayerInfo = () => {
   useEffect(() => {
     const name = localStorage.getItem('airtimeName');
     const hasCase = localStorage.getItem('airtimeHasCase');
+    const playerId = localStorage.getItem('airtimePlayerId');
     if (name || hasCase) {
       setPlayerInfoInner({
         name: name ?? '',
         hasCase: hasCase === 'true',
+        playerId: playerId ?? '',
       });
     } else {
       setPlayerInfoInner(null);
@@ -531,7 +534,7 @@ const usePlayerInfo = () => {
 };
 
 type WelcomeProps = {
-  onPlay: (name: string, hasCase: boolean) => void;
+  onPlay: (name: string, hasCase: boolean, playerId: string) => void;
 };
 
 const Welcome = ({ onPlay }: WelcomeProps) => {
@@ -558,7 +561,7 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
           e.preventDefault();
           const permissionResult = await requestMotionPermissions();
           if (permissionResult) {
-            onPlay(name, hasCase);
+            onPlay(name, hasCase, crypto.randomUUID());
           }
         }}
         className="flex flex-col space-y-2"
@@ -596,111 +599,10 @@ export default function Home() {
   const [playerInfo, setPlayerInfo, updateLocalStorage] = usePlayerInfo();
   return (
     <main className={`pt-4 flex w-full flex-col items-center`}>
-      <Head>
-        <title>high phone</title>
-        <meta
-          name="description"
-          content="send your phone on an incredible journey"
-        />
-        <meta property="og:title" content="highphone" />
-        <meta
-          property="og:description"
-          content="send your phone on an incredible journey"
-        />
-        <meta
-          property="og:image"
-          content="https://www.highph.one/highphone-logo.png"
-        />
-        <meta property="og:url" content="https://www.highph.one" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="highphone" />
-        <meta
-          name="twitter:description"
-          content="send your phone on an incredible journey"
-        />
-        <meta
-          name="twitter:image"
-          content="https://www.highph.one/highphone-logo.png"
-        />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <link
-          rel="apple-touch-icon"
-          sizes="57x57"
-          href="/apple-icon-57x57.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="60x60"
-          href="/apple-icon-60x60.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="72x72"
-          href="/apple-icon-72x72.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="76x76"
-          href="/apple-icon-76x76.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="114x114"
-          href="/apple-icon-114x114.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="120x120"
-          href="/apple-icon-120x120.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="144x144"
-          href="/apple-icon-144x144.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="152x152"
-          href="/apple-icon-152x152.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="180x180"
-          href="/apple-icon-180x180.png"
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="192x192"
-          href="/android-icon-192x192.png"
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="32x32"
-          href="/favicon-32x32.png"
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="96x96"
-          href="/favicon-96x96.png"
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="16x16"
-          href="/favicon-16x16.png"
-        />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="msapplication-TileColor" content="#ffffff" />
-        <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
-        <meta name="theme-color" content="#ffffff" />
-      </Head>
       {playerInfo === null && (
         <Welcome
-          onPlay={(name, hasCase) => {
-            updateLocalStorage({ name, hasCase });
+          onPlay={(name, hasCase, playerId) => {
+            updateLocalStorage({ name, hasCase, playerId });
             // reload to avoid the "shake to undo" bug
             window.location.reload();
           }}
