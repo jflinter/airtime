@@ -17,6 +17,7 @@ import { createScore } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PlayerInfo, usePlayerInfo } from '@/lib/usePlayerInfo';
+import Fame from '@/components/Fame';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -257,6 +258,7 @@ type GameProps = {
 };
 
 const Game = ({ playerInfo }: GameProps) => {
+  const [mode, setMode] = useState<'fame' | 'game'>('game');
   const router = useRouter();
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
@@ -360,7 +362,7 @@ const Game = ({ playerInfo }: GameProps) => {
       chunksRef.current = [];
     };
   }, []);
-  return (
+  return mode === 'game' ? (
     <>
       {lastThrow ? (
         <div className="flex flex-col space-y-2 w-full px-2 items-center">
@@ -388,18 +390,28 @@ const Game = ({ playerInfo }: GameProps) => {
             }}
           />
           <h1 className="text-md font-semibold">
-            Your phone&apos;s incredible journey
+            ✨Your phone&apos;s incredible journey✨
           </h1>
-          <h1>{`${(lastThrow.durationMs / 1000).toFixed(
-            2
-          )} seconds in the air`}</h1>
-          <h1>{`${lastThrow.totalHeight.toFixed(1)} foot throw!`}</h1>
+          <h1>
+            ✨It flew for{' '}
+            <span className="font-semibold">
+              {(lastThrow.durationMs / 1000).toFixed(2)} seconds!
+            </span>
+            ✨
+          </h1>
+          <h1>
+            ✨It soared{' '}
+            <span className="font-semibold">
+              {lastThrow.totalHeight.toFixed(1)} feet
+            </span>{' '}
+            into the sky!✨
+          </h1>
           {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
             1
           )} vertical flips!`}</h1> */}
           <div className="flex flex-col space-y-2 w-full">
             <Button
-              text="Throw again"
+              text="&nbsp;&nbsp;Throw again 🔃"
               onClick={() => {
                 setLastThrow(null);
                 setVideoBlob(null);
@@ -407,12 +419,12 @@ const Game = ({ playerInfo }: GameProps) => {
               }}
             />
             <Button
-              text="Share"
+              text="&nbsp;&nbsp;Share 🤳"
               onClick={async () => {
                 const shareData: ShareData = {
                   text: `I threw my phone ${lastThrow.totalHeight.toFixed(
                     1
-                  )} feet in the air on highphone!`,
+                  )} feet in the air!`,
                   url: 'https://highphone.app',
                   files: videoBlob
                     ? [
@@ -429,9 +441,12 @@ const Game = ({ playerInfo }: GameProps) => {
                 }
               }}
             />
-            <Button text="Leaderboard" onClick={() => router.push('/fame')} />
+            <Button
+              text="&nbsp;&nbsp;Hall of Fame 🏆"
+              onClick={() => setMode('fame')}
+            />
             {videoBlob && (
-              <>
+              <div className="mx-auto">
                 <video
                   src={URL.createObjectURL(videoBlob)}
                   width={320}
@@ -440,10 +455,10 @@ const Game = ({ playerInfo }: GameProps) => {
                   playsInline
                   loop
                 />
-              </>
+              </div>
             )}
             <Button
-              text={showGraphs ? 'Hide debug data' : 'Show debug data'}
+              text={showGraphs ? 'Hide debug data 🤓' : 'Show debug data 🤓'}
               onClick={() => setShowGraphs(!showGraphs)}
             />
             {showGraphs && (
@@ -503,6 +518,8 @@ const Game = ({ playerInfo }: GameProps) => {
         </>
       )}
     </>
+  ) : (
+    <Fame onBack={() => setMode('game')} />
   );
 };
 

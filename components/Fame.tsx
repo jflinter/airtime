@@ -5,7 +5,11 @@ import classNames from 'classnames';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-export default function Fame() {
+type Props = {
+  onBack: () => void;
+};
+
+export default function Fame({ onBack }: Props) {
   const [playerInfo] = usePlayerInfo();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [mode, setMode] = useState<'case' | 'no-case'>('no-case');
@@ -19,10 +23,14 @@ export default function Fame() {
   return (
     <main className={`flex w-full flex-col items-center`}>
       <div className="sticky w-full top-0 z-50 bg-white shadow mb-4">
-        <div className="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="w-full mx-auto pb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <Link href={`/`} className="text-blue-600 flex items-center">
+              <Link
+                href={`#`}
+                onClick={onBack}
+                className="text-blue-600 flex items-center"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -37,7 +45,7 @@ export default function Fame() {
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-                <span className="ml-1">Back</span>
+                <span className="ml-0">Back</span>
               </Link>
             </div>
             <div className="text-center flex flex-col space-y-2">
@@ -46,7 +54,7 @@ export default function Fame() {
                 <button
                   onClick={() => setMode('no-case')}
                   className={classNames(
-                    'rounded-full focus:outline-none px-3 py-1',
+                    'rounded-full focus:outline-none px-3 py-1 text-sm',
                     { 'bg-white text-blue-600': mode === 'no-case' },
                     { 'bg-none text-gray-600': mode === 'case' }
                   )}
@@ -56,7 +64,7 @@ export default function Fame() {
                 <button
                   onClick={() => setMode('case')}
                   className={classNames(
-                    'rounded-full focus:outline-none px-3 py-1',
+                    'rounded-full focus:outline-none px-3 py-1 text-sm',
                     { 'bg-white text-blue-600': mode === 'case' },
                     { 'bg-none text-gray-600': mode === 'no-case' }
                   )}
@@ -65,7 +73,7 @@ export default function Fame() {
                 </button>
               </div>
             </div>
-            <div className="w-24"></div>
+            <div className="w-[60px]">&nbsp;</div>
           </div>
         </div>
       </div>
