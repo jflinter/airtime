@@ -269,7 +269,7 @@ const Game = ({ playerInfo }: GameProps) => {
     mediaStreamConstraints: {
       audio: false,
       video: {
-        facingMode: { exact: 'environment' },
+        facingMode: 'user',
         frameRate: { ideal: 16, max: 16 },
         height: { ideal: 640 },
         width: { ideal: 640 },
@@ -334,7 +334,7 @@ const Game = ({ playerInfo }: GameProps) => {
         accelerations = [];
         orientations = [];
         chunksRef.current = [];
-        if (detectedThrow.totalHeight > 2) {
+        if (detectedThrow.totalHeight > 1.5) {
           setLastThrow(detectedThrow);
           createScore({
             playerId: playerInfo.playerId,
