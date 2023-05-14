@@ -117,9 +117,14 @@ const requestMotionPermissions = async () => {
   ).requestPermission;
   const iOS = typeof requestPermission === 'function';
   if (iOS) {
-    const response = await requestPermission();
-    if (response === 'granted') {
-      return true;
+    try {
+      const response = await requestPermission();
+      if (response === 'granted') {
+        return true;
+      }
+    } catch (e) {
+      localStorage.clear();
+      window.location.reload();
     }
   }
   return false;
@@ -259,7 +264,6 @@ type GameProps = {
 
 const Game = ({ playerInfo }: GameProps) => {
   const [mode, setMode] = useState<'fame' | 'game'>('game');
-  const router = useRouter();
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
   const [recordVideo, setRecordVideo] = useState(false);
