@@ -18,9 +18,9 @@ export default function App({ Component, pageProps }: AppProps) {
         />
         <meta
           property="og:image"
-          content="https://www.highph.one/highphone-logo.png"
+          content="https://www.highphone.app/highphone-logo.png"
         />
-        <meta property="og:url" content="https://www.highph.one" />
+        <meta property="og:url" content="https://www.highphone.app" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="highphone" />
         <meta
@@ -29,7 +29,7 @@ export default function App({ Component, pageProps }: AppProps) {
         />
         <meta
           name="twitter:image"
-          content="https://www.highph.one/highphone-logo.png"
+          content="https://www.highphone.app/highphone-logo.png"
         />
         <meta
           name="viewport"

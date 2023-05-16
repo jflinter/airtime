@@ -14,37 +14,66 @@ export type LeaderboardEntry = {
 };
 
 export type ScoreRequest = {
+  throwId: string;
   playerId: string;
   playerName: string;
   durationMs: number;
   hasCase: boolean;
 };
 
+export type VideoRequest = {
+  throwId: string;
+  video: File;
+};
+
+export const uploadVideo = async ({
+  throwId,
+  video,
+}: VideoRequest): Promise<void> => {
+  await supabase.storage.from('journeys').upload(video.name, video);
+};
+
 export const createScore = async ({
+  throwId,
   playerId,
   playerName,
   durationMs,
   hasCase,
-}: ScoreRequest): Promise<void> => {
-  await supabase
-    .from('scores')
-    .insert({
-      player_id: playerId,
-      player_name: playerName,
-      duration_ms: durationMs,
-      has_case: hasCase,
-    })
-    .single();
+}: ScoreRequest): Promise<number | null> => {
+  try {
+    const result = await supabase
+      .from('scores')
+      .insert({
+        local_id: throwId,
+        player_id: playerId,
+        player_name: playerName,
+        duration_ms: durationMs.toFixed(0),
+        has_case: hasCase,
+      })
+      .select('id')
+      .single()
+      .then((res) => res.data);
+    if (!result) {
+      return null;
+    }
+    const leaderboard = await fetchScores(hasCase, true);
+    const index = leaderboard.findIndex((e) => e.id === result.id);
+    return index > 0 ? index : null;
+  } catch (e) {
+    debugger;
+    console.error(e);
+    return null;
+  }
 };
 
 export const fetchScores = async (
-  hasCase: boolean
+  hasCase: boolean,
+  todayOnly: boolean
 ): Promise<LeaderboardEntry[]> => {
   return (
     (await supabase
-      .from('scores')
+      .from(todayOnly ? 'daily_leaderboard' : 'leaderboard')
       .select('*')
-      .order('duration_ms', { ascending: false })
       .eq('has_case', hasCase)
       .limit(100)
       .then(({ data }) => {
@@ -53,8 +82,9 @@ export const fetchScores = async (
             return {
               id: d.id,
               name: d.player_name,
-              durationMs: d.duration_ms,
+              durationMs: d.max_duration,
               date: new Date(d.created_at),
+              hasCase: d.has_case,
               playerId: d.player_id,
             };
           });

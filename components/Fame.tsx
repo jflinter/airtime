@@ -9,20 +9,53 @@ type Props = {
   onBack: () => void;
 };
 
+type SegmentedControlProps = {
+  options: string[];
+  selectedIndex: number;
+  onChange: (index: number) => void;
+};
+
+const SegmentedControl = ({
+  options,
+  selectedIndex,
+  onChange,
+}: SegmentedControlProps) => {
+  return (
+    <div className="bg-gray-200 rounded-full w-full flex h-[35px] border border-gray-200 whitespace-nowrap">
+      {options.map((option, i) => {
+        return (
+          <button
+            key={option}
+            onClick={() => onChange(i)}
+            className={classNames(
+              'rounded-full focus:outline-none px-3 py-1 text-sm',
+              { 'bg-white text-blue-600': selectedIndex === i },
+              { 'bg-none text-gray-600': selectedIndex === i }
+            )}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 export default function Fame({ onBack }: Props) {
   const [playerInfo] = usePlayerInfo();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [mode, setMode] = useState<'case' | 'no-case'>('no-case');
+  const [timeWindow, setTimeWindow] = useState<'daily' | 'all-time'>('daily');
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchScores(mode === 'case').then(setLeaderboard);
+      fetchScores(mode === 'case', timeWindow === 'daily').then(setLeaderboard);
     });
     return () => clearTimeout(timeout);
-  }, [mode]);
+  }, [mode, timeWindow]);
 
   return (
     <main className={`flex w-full flex-col items-center`}>
-      <div className="sticky w-full top-0 z-50 bg-white shadow mb-4">
+      <div className="sticky w-full top-0 z-50 bg-white shadow-bottom mb-4">
         <div className="w-full mx-auto pb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -50,28 +83,22 @@ export default function Fame({ onBack }: Props) {
             </div>
             <div className="text-center flex flex-col space-y-2">
               <h1 className={`text-xl font-semibold`}>the highest phones</h1>
-              <div className="bg-gray-200 rounded-full w-full flex h-[35px] border border-gray-200 whitespace-nowrap">
-                <button
-                  onClick={() => setMode('no-case')}
-                  className={classNames(
-                    'rounded-full focus:outline-none px-3 py-1 text-sm',
-                    { 'bg-white text-blue-600': mode === 'no-case' },
-                    { 'bg-none text-gray-600': mode === 'case' }
-                  )}
-                >
-                  No Case 🤙
-                </button>
-                <button
-                  onClick={() => setMode('case')}
-                  className={classNames(
-                    'rounded-full focus:outline-none px-3 py-1 text-sm',
-                    { 'bg-white text-blue-600': mode === 'case' },
-                    { 'bg-none text-gray-600': mode === 'no-case' }
-                  )}
-                >
-                  Case 👼
-                </button>
-              </div>
+              <SegmentedControl
+                options={['No Case 🤙', 'Case 👼']}
+                onChange={(i) => {
+                  const options = ['no-case', 'case'] as const;
+                  setMode(options[i]);
+                }}
+                selectedIndex={mode === 'no-case' ? 0 : 1}
+              />
+              <SegmentedControl
+                options={['Today ⏳', 'All Time 🌎']}
+                onChange={(i) => {
+                  const options = ['daily', 'all-time'] as const;
+                  setTimeWindow(options[i]);
+                }}
+                selectedIndex={timeWindow === 'daily' ? 0 : 1}
+              />
             </div>
             <div className="w-[60px]">&nbsp;</div>
           </div>

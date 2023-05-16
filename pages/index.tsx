@@ -13,11 +13,12 @@ import { Switch } from '@/components/Switch';
 import Confetti from 'react-confetti';
 import useMediaRecorder from '@/components/useMediaRecorder';
 import { heightFromSeconds } from '@/lib/heightFromSeconds';
-import { createScore } from '@/lib/supabaseClient';
+import { createScore, uploadVideo } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PlayerInfo, usePlayerInfo } from '@/lib/usePlayerInfo';
 import Fame from '@/components/Fame';
+import Info from '@/components/Info';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -30,6 +31,7 @@ type Orientation = {
 };
 
 type Throw = {
+  id: string;
   durationMs: number;
   totalHeight: number;
   accelerationData: number[];
@@ -234,6 +236,7 @@ const detectThrow = (
         ];
       });
       return {
+        id: crypto.randomUUID(),
         durationMs: durationInSeconds * 1000,
         totalHeight: height,
         accelerationData: accelerations.slice(startIndex, i),
@@ -263,8 +266,9 @@ type GameProps = {
 };
 
 const Game = ({ playerInfo }: GameProps) => {
-  const [mode, setMode] = useState<'fame' | 'game'>('game');
+  const [mode, setMode] = useState<'fame' | 'game' | 'info'>('game');
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
+  const [dailyIndex, setDailyIndex] = useState<number | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
   const [recordVideo, setRecordVideo] = useState(false);
   const { stopRecording, getMediaStream, startRecording } = useMediaRecorder({
@@ -289,6 +293,15 @@ const Game = ({ playerInfo }: GameProps) => {
   });
   const chunksRef = useRef<Blob[]>([]);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+
+  useEffect(() => {
+    if (videoBlob && lastThrow) {
+      const file = new File([videoBlob], `${lastThrow.id}.mp4`, {
+        type: videoBlob.type,
+      });
+      uploadVideo({ throwId: lastThrow.id, video: file });
+    }
+  }, [lastThrow, videoBlob]);
 
   useEffect(() => {
     let accelerations: number[] = [];
@@ -341,10 +354,13 @@ const Game = ({ playerInfo }: GameProps) => {
         if (detectedThrow.totalHeight > 1.5) {
           setLastThrow(detectedThrow);
           createScore({
+            throwId: detectedThrow.id,
             playerId: playerInfo.playerId,
             playerName: playerInfo.name,
             hasCase: playerInfo.hasCase,
             durationMs: detectedThrow.durationMs,
+          }).then((dailyIndex) => {
+            setDailyIndex(dailyIndex);
           });
           stopRecording();
         }
@@ -366,164 +382,193 @@ const Game = ({ playerInfo }: GameProps) => {
       chunksRef.current = [];
     };
   }, []);
-  return mode === 'game' ? (
+  const formatOrdinal = (x: number): string => {
+    if (x === 1) {
+      return '';
+    } else if (x === 2) {
+      return '2nd ';
+    } else if (x === 3) {
+      return '3rd ';
+    } else {
+      return `${x}th `;
+    }
+  };
+  return (
     <>
-      {lastThrow ? (
-        <div className="flex flex-col space-y-2 w-full px-2 items-center">
-          <AutoScroller />
-          <Confetti
-            recycle={false}
-            colors={[
-              `#FFD700`,
-              `#FFC400`,
-              `#FFBF00`,
-              `#FFD56A`,
-              `#FFC107`,
-              `#FFB300`,
-              `#FFC87C`,
-              `#FFB90F`,
-              `#FFD42A`,
-              `#FFC300`,
-            ]}
-            numberOfPieces={Math.round(lastThrow.totalHeight * 100)}
-            confettiSource={{
-              x: 0,
-              y: -20,
-              h: 0,
-              w: document.body.clientWidth,
-            }}
-          />
-          <h1 className="text-md font-semibold">
-            ✨Your phone&apos;s incredible journey✨
-          </h1>
-          <h1>
-            ✨It flew for{' '}
-            <span className="font-semibold">
-              {(lastThrow.durationMs / 1000).toFixed(2)} seconds!
-            </span>
-            ✨
-          </h1>
-          <h1>
-            ✨It soared{' '}
-            <span className="font-semibold">
-              {lastThrow.totalHeight.toFixed(1)} feet
-            </span>{' '}
-            into the sky!✨
-          </h1>
-          {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
+      {mode === 'game' && (
+        <>
+          {lastThrow ? (
+            <div className="flex flex-col space-y-2 w-full px-2 items-center">
+              <AutoScroller />
+              <Confetti
+                recycle={false}
+                colors={[
+                  `#FFD700`,
+                  `#FFC400`,
+                  `#FFBF00`,
+                  `#FFD56A`,
+                  `#FFC107`,
+                  `#FFB300`,
+                  `#FFC87C`,
+                  `#FFB90F`,
+                  `#FFD42A`,
+                  `#FFC300`,
+                ]}
+                numberOfPieces={Math.round(lastThrow.totalHeight * 100)}
+                confettiSource={{
+                  x: 0,
+                  y: -20,
+                  h: 0,
+                  w: document.body.clientWidth,
+                }}
+              />
+              <h1 className="text-md font-semibold">
+                ✨Your phone&apos;s incredible journey✨
+              </h1>
+              <h1>
+                ✨It flew for{' '}
+                <span className="font-semibold">
+                  {(lastThrow.durationMs / 1000).toFixed(2)} seconds!
+                </span>
+                ✨
+              </h1>
+              <h1>
+                ✨It soared{' '}
+                <span className="font-semibold">
+                  {lastThrow.totalHeight.toFixed(1)} feet
+                </span>{' '}
+                into the sky!✨
+              </h1>
+              {dailyIndex && (
+                <h1>
+                  🏆It was the{' '}
+                  <span className="font-semibold">
+                    {formatOrdinal(dailyIndex + 1)}
+                  </span>
+                  highest throw of the day!🏆
+                </h1>
+              )}
+              {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
             1
           )} vertical flips!`}</h1> */}
-          <div className="flex flex-col space-y-2 w-full">
-            <Button
-              text="&nbsp;&nbsp;Throw again 🔃"
-              onClick={() => {
-                setLastThrow(null);
-                setVideoBlob(null);
-                setRecordVideo(false);
-              }}
-            />
-            <Button
-              text="&nbsp;&nbsp;Share 🤳"
-              onClick={async () => {
-                const shareData: ShareData = {
-                  text: `I threw my phone ${lastThrow.totalHeight.toFixed(
-                    1
-                  )} feet in the air!`,
-                  url: 'https://highphone.app',
-                  files: videoBlob
-                    ? [
-                        new File([videoBlob], 'phone_journey.mp4', {
-                          type: videoBlob.type,
-                        }),
-                      ]
-                    : undefined,
-                };
-                try {
-                  await navigator.share(shareData);
-                } catch (error) {
-                  console.log(error);
-                }
-              }}
-            />
-            <Button
-              text="&nbsp;&nbsp;Hall of Fame 🏆"
-              onClick={() => setMode('fame')}
-            />
-            {videoBlob && (
-              <div className="mx-auto">
-                <video
-                  src={URL.createObjectURL(videoBlob)}
-                  width={320}
-                  height={320}
-                  autoPlay
-                  playsInline
-                  loop
+              <div className="flex flex-col pt-4 space-y-2 w-full">
+                <Button
+                  text="&nbsp;&nbsp;Throw again 🔃"
+                  onClick={() => {
+                    setLastThrow(null);
+                    setDailyIndex(null);
+                    setVideoBlob(null);
+                    setRecordVideo(false);
+                  }}
                 />
-              </div>
-            )}
-            <Button
+                <Button
+                  text="&nbsp;&nbsp;Share 🤳"
+                  onClick={async () => {
+                    const shareData: ShareData = {
+                      text: `I threw my phone ${lastThrow.totalHeight.toFixed(
+                        1
+                      )} feet in the air!`,
+                      url: 'https://highphone.app',
+                      files: videoBlob
+                        ? [
+                            new File([videoBlob], 'phone_journey.mp4', {
+                              type: videoBlob.type,
+                            }),
+                          ]
+                        : undefined,
+                    };
+                    try {
+                      await navigator.share(shareData);
+                    } catch (error) {
+                      console.log(error);
+                    }
+                  }}
+                />
+                <Button
+                  text="&nbsp;&nbsp;Show Leaderboard 🏆"
+                  onClick={() => setMode('fame')}
+                />
+                {videoBlob && (
+                  <div className="mx-auto">
+                    <video
+                      src={URL.createObjectURL(videoBlob)}
+                      width={320}
+                      height={320}
+                      autoPlay
+                      playsInline
+                      loop
+                    />
+                  </div>
+                )}
+                {/* <Button
               text={showGraphs ? 'Hide debug data 🤓' : 'Show debug data 🤓'}
               onClick={() => setShowGraphs(!showGraphs)}
-            />
-            {showGraphs && (
-              <ResponsiveContainer width="100%" height={400}>
-                <ScatterChart margin={{ left: 20 }}>
-                  <CartesianGrid />
-                  <XAxis type="number" dataKey="x" name="time" unit="s" />
-                  <YAxis
-                    type="number"
-                    dataKey="y"
-                    name="acceleration"
-                    unit="m/s^2"
-                  />
-                  <ReferenceLine
-                    x={lastThrow.acceleratingIndex / 60.0}
-                    stroke="yellow"
-                  />
-                  <ReferenceLine
-                    x={lastThrow.inFlightIndex / 60.0}
-                    stroke="red"
-                  />
-                  <ReferenceLine
-                    x={lastThrow.completeIndex / 60.0}
-                    stroke="green"
-                  />
-                  <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                  <Scatter
-                    data={lastThrow.accelerationData.map((a, t) => ({
-                      x: t / 60,
-                      y: a,
-                    }))}
-                    fill="#8884d8"
-                  />
-                </ScatterChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      ) : (
-        <>
-          <h1 className="text-md font-semibold">
-            Throw your phone high into the sky!
-          </h1>
-          <Switch
-            label="Film my phone's journey"
-            on={recordVideo}
-            onToggle={async (enabled) => {
-              setRecordVideo(enabled);
-              if (enabled) {
-                await getMediaStream();
-                await startRecording();
-              } else {
-                stopRecording();
-              }
-            }}
-          />
+            /> */}
+                <Button
+                  text={'About highphone 🧜‍♂️'}
+                  onClick={() => setMode('info')}
+                />
+                {showGraphs && (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ScatterChart margin={{ left: 20 }}>
+                      <CartesianGrid />
+                      <XAxis type="number" dataKey="x" name="time" unit="s" />
+                      <YAxis
+                        type="number"
+                        dataKey="y"
+                        name="acceleration"
+                        unit="m/s^2"
+                      />
+                      <ReferenceLine
+                        x={lastThrow.acceleratingIndex / 60.0}
+                        stroke="yellow"
+                      />
+                      <ReferenceLine
+                        x={lastThrow.inFlightIndex / 60.0}
+                        stroke="red"
+                      />
+                      <ReferenceLine
+                        x={lastThrow.completeIndex / 60.0}
+                        stroke="green"
+                      />
+                      <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                      <Scatter
+                        data={lastThrow.accelerationData.map((a, t) => ({
+                          x: t / 60,
+                          y: a,
+                        }))}
+                        fill="#8884d8"
+                      />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-md font-semibold">
+                Throw your phone high into the sky!
+              </h1>
+              <Switch
+                label="Film my phone's journey"
+                on={recordVideo}
+                onToggle={async (enabled) => {
+                  setRecordVideo(enabled);
+                  if (enabled) {
+                    await getMediaStream();
+                    await startRecording();
+                  } else {
+                    stopRecording();
+                  }
+                }}
+              />
+            </>
+          )}
         </>
       )}
+      {mode === 'info' && <Info onBack={() => setMode('game')} />}
+      {mode === 'fame' && <Fame onBack={() => setMode('game')} />}
     </>
-  ) : (
-    <Fame onBack={() => setMode('game')} />
   );
 };
 
