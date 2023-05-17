@@ -44,7 +44,9 @@ const SegmentedControl = ({
 export default function Fame({ onBack }: Props) {
   const [playerInfo] = usePlayerInfo();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [mode, setMode] = useState<'case' | 'no-case'>('no-case');
+  const [mode, setMode] = useState<'case' | 'no-case'>(
+    playerInfo?.hasCase ? 'case' : 'no-case'
+  );
   const [timeWindow, setTimeWindow] = useState<'daily' | 'all-time'>('daily');
   useEffect(() => {
     const timeout = setTimeout(() => {

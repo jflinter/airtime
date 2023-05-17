@@ -132,13 +132,6 @@ const requestMotionPermissions = async () => {
   return false;
 };
 
-const AutoScroller = () => {
-  useEffect(() => {
-    window.scrollTo(0, 1);
-  });
-  return <></>;
-};
-
 const round = (float: number | null | undefined) =>
   Number((float ?? 0).toFixed(1));
 
@@ -399,7 +392,6 @@ const Game = ({ playerInfo }: GameProps) => {
         <>
           {lastThrow ? (
             <div className="flex flex-col space-y-2 w-full px-2 items-center">
-              <AutoScroller />
               <Confetti
                 recycle={false}
                 colors={[
@@ -488,6 +480,10 @@ const Game = ({ playerInfo }: GameProps) => {
                   text="&nbsp;&nbsp;Show Leaderboard 🏆"
                   onClick={() => setMode('fame')}
                 />
+                <Button
+                  text={'About highphone 🧜‍♂️'}
+                  onClick={() => setMode('info')}
+                />
                 {videoBlob && (
                   <div className="mx-auto">
                     <video
@@ -504,10 +500,6 @@ const Game = ({ playerInfo }: GameProps) => {
               text={showGraphs ? 'Hide debug data 🤓' : 'Show debug data 🤓'}
               onClick={() => setShowGraphs(!showGraphs)}
             /> */}
-                <Button
-                  text={'About highphone 🧜‍♂️'}
-                  onClick={() => setMode('info')}
-                />
                 {showGraphs && (
                   <ResponsiveContainer width="100%" height={400}>
                     <ScatterChart margin={{ left: 20 }}>
