@@ -41,12 +41,12 @@ export default function Info({ onBack }: Props) {
         </div>
       </div>
       <p className="px-4">
-        Hey, I&apos;m Jack! Thanks for playing. If you like high phone or have
-        any bugs or suggestions or just feel like saying hi, send me a text at{' '}
+        Hey, I&apos;m Jack! Thanks for playing. If you&apos;ve made it this far,
+        I&apos;d love it if you said hi - I&apos;m{' '}
         <a className="text-blue-700" href="sms:+18476871127">
           8476871127
         </a>
-        , I&apos;d love to hear from you!
+        .
       </p>
       <p className="px-4 pt-4">
         Unless you broke your phone and want to sue me, in which case: Hey, my
