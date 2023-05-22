@@ -1,5 +1,5 @@
 // Function to calculate max height
-export function heightFromSeconds(timeInAir: number): number {
+export function heightFromSeconds(timeInAir: number) {
   let t = timeInAir / 2;
   let g = 9.8; // m/s^2
   let v0 = g * t;

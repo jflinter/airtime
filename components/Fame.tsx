@@ -42,7 +42,7 @@ const SegmentedControl = ({
 };
 
 export default function Fame({ onBack }: Props) {
-  const [playerInfo] = usePlayerInfo();
+  const { playerInfo } = usePlayerInfo();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [mode, setMode] = useState<'case' | 'no-case'>(
     playerInfo?.hasCase ? 'case' : 'no-case'

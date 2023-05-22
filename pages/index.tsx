@@ -13,12 +13,19 @@ import { Switch } from '@/components/Switch';
 import Confetti from 'react-confetti';
 import useMediaRecorder from '@/components/useMediaRecorder';
 import { heightFromSeconds } from '@/lib/heightFromSeconds';
-import { createScore, uploadVideo } from '@/lib/supabaseClient';
+import {
+  LeaderboardEntry,
+  createScore,
+  fetchHighScore,
+  uploadVideo,
+} from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PlayerInfo, usePlayerInfo } from '@/lib/usePlayerInfo';
 import Fame from '@/components/Fame';
 import Info from '@/components/Info';
+import IPhoneOnly from '@/components/IPhoneOnly';
+import { speedFromSeconds } from '@/lib/speedFromSeconds';
 
 interface DeviceMotionEventiOS extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
@@ -125,7 +132,8 @@ const requestMotionPermissions = async () => {
         return true;
       }
     } catch (e) {
-      localStorage.clear();
+      localStorage.removeItem('airtimeName');
+      localStorage.removeItem('airtimeHasCase');
       window.location.reload();
     }
   }
@@ -259,6 +267,8 @@ type GameProps = {
 };
 
 const Game = ({ playerInfo }: GameProps) => {
+  const [playerHighScore, setPlayerHighScore] =
+    useState<LeaderboardEntry | null>(null);
   const [mode, setMode] = useState<'fame' | 'game' | 'info'>('game');
   const [lastThrow, setLastThrow] = useState<Throw | null>(null);
   const [dailyIndex, setDailyIndex] = useState<number | null>(null);
@@ -284,6 +294,11 @@ const Game = ({ playerInfo }: GameProps) => {
       alert(JSON.stringify(error));
     },
   });
+  useEffect(() => {
+    fetchHighScore(playerInfo.playerId).then((highScore) => {
+      setPlayerHighScore(highScore);
+    });
+  }, [lastThrow, playerInfo]);
   const chunksRef = useRef<Blob[]>([]);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
@@ -431,13 +446,21 @@ const Game = ({ playerInfo }: GameProps) => {
                 </span>{' '}
                 into the sky!✨
               </h1>
+              <h1>
+                ✨It traveled up to{' '}
+                <span className="font-semibold">
+                  {speedFromSeconds(lastThrow.durationMs / 1000).toFixed(1)}{' '}
+                  mph!
+                </span>{' '}
+                ✨
+              </h1>
               {dailyIndex && (
-                <h1>
-                  🏆It was the{' '}
+                <h1 className="text-center">
+                  🏆 It was the{' '}
                   <span className="font-semibold">
                     {formatOrdinal(dailyIndex + 1)}
                   </span>
-                  highest throw of the day!🏆
+                  highest throw of the day!
                 </h1>
               )}
               {/* <h1>{`${(lastThrow.totalRotation.beta / 360).toFixed(
@@ -445,22 +468,12 @@ const Game = ({ playerInfo }: GameProps) => {
           )} vertical flips!`}</h1> */}
               <div className="flex flex-col pt-4 space-y-2 w-full">
                 <Button
-                  text="&nbsp;&nbsp;Throw again 🔃"
-                  onClick={() => {
-                    setLastThrow(null);
-                    setDailyIndex(null);
-                    setVideoBlob(null);
-                    setRecordVideo(false);
-                  }}
-                />
-                <Button
-                  text="&nbsp;&nbsp;Share 🤳"
+                  text="&nbsp;&nbsp;Share 🔗"
                   onClick={async () => {
                     const shareData: ShareData = {
                       text: `I threw my phone ${lastThrow.totalHeight.toFixed(
                         1
-                      )} feet in the air!`,
-                      url: 'https://highphone.app',
+                      )} feet in the air! https://highphone.app`,
                       files: videoBlob
                         ? [
                             new File([videoBlob], 'phone_journey.mp4', {
@@ -474,6 +487,34 @@ const Game = ({ playerInfo }: GameProps) => {
                     } catch (error) {
                       console.log(error);
                     }
+                  }}
+                />
+                {videoBlob && (
+                  <Button
+                    text="&nbsp;&nbsp;Save video 💾"
+                    onClick={async () => {
+                      const shareData: ShareData = {
+                        files: [
+                          new File([videoBlob], 'phone_journey.mp4', {
+                            type: videoBlob.type,
+                          }),
+                        ],
+                      };
+                      try {
+                        await navigator.share(shareData);
+                      } catch (error) {
+                        console.log(error);
+                      }
+                    }}
+                  />
+                )}
+                <Button
+                  text="&nbsp;&nbsp;Throw again 🔃"
+                  onClick={() => {
+                    setLastThrow(null);
+                    setDailyIndex(null);
+                    setVideoBlob(null);
+                    setRecordVideo(false);
                   }}
                 />
                 <Button
@@ -538,11 +579,28 @@ const Game = ({ playerInfo }: GameProps) => {
             </div>
           ) : (
             <>
-              <h1 className="text-md font-semibold">
-                Throw your phone high into the sky!
-              </h1>
+              <h1 className="text-md font-semibold">high phone</h1>
+              <ul className="text-md font-normal pl-4 pr-2 pt-2 pb-4">
+                <li>👆 Throw your phone high into the sky!</li>
+                <li>👍 Yes, seriously, that is the game</li>
+                <li>🤙 Do it and see what happens</li>
+                <li>✌️ Has to be at least 2 feet</li>
+                <li>
+                  🤝 Pro tip: get your friends to do it too and see who can
+                  throw theirs highest
+                </li>
+                {playerHighScore && (
+                  <li>
+                    👏 Your highest throw is{' '}
+                    {heightFromSeconds(
+                      playerHighScore.durationMs / 1000
+                    ).toFixed(1)}{' '}
+                    feet
+                  </li>
+                )}
+              </ul>
               <Switch
-                label="Film my phone's journey"
+                label="🎥 Film my phone's journey"
                 on={recordVideo}
                 onToggle={async (enabled) => {
                   setRecordVideo(enabled);
@@ -627,19 +685,32 @@ const Welcome = ({ onPlay }: WelcomeProps) => {
 };
 
 export default function Home() {
-  const [playerInfo, setPlayerInfo, updateLocalStorage] = usePlayerInfo();
+  const { playerInfo, setPlayerInfo, updateLocalStorage } = usePlayerInfo();
   return (
     <main className={`pt-4 flex w-full flex-col items-center`}>
-      {playerInfo === null && (
-        <Welcome
-          onPlay={(name, hasCase, playerId) => {
-            updateLocalStorage({ name, hasCase, playerId });
-            // reload to avoid the "shake to undo" bug
-            window.location.reload();
-          }}
-        />
-      )}
-      {playerInfo && <Game playerInfo={playerInfo} />}
+      <IPhoneOnly
+        fallback={
+          <>
+            <div className={`flex w-full flex-col items-center space-y-2`}>
+              <h1 className="text-md font-semibold">
+                Sorry, high phone only works on iPhones. Maybe borrow one from
+                your friend?
+              </h1>
+            </div>
+          </>
+        }
+      >
+        {playerInfo === null && (
+          <Welcome
+            onPlay={(name, hasCase, playerId) => {
+              updateLocalStorage({ name, hasCase, playerId });
+              // reload to avoid the "shake to undo" bug
+              window.location.reload();
+            }}
+          />
+        )}
+        {playerInfo && <Game playerInfo={playerInfo} />}
+      </IPhoneOnly>
     </main>
   );
 }

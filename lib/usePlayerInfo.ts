@@ -20,6 +20,10 @@ export const usePlayerInfo = () => {
     updateLocalStorage(info);
     setPlayerInfoInner(info);
   };
+  const reset = () => {
+    localStorage.removeItem('airtimeName');
+    localStorage.removeItem('airtimeHasCase');
+  };
   useEffect(() => {
     const name = localStorage.getItem('airtimeName');
     const hasCase = localStorage.getItem('airtimeHasCase');
@@ -34,5 +38,5 @@ export const usePlayerInfo = () => {
       setPlayerInfoInner(null);
     }
   }, []);
-  return [playerInfo, setPlayerInfo, updateLocalStorage] as const;
+  return { playerInfo, setPlayerInfo, updateLocalStorage, reset } as const;
 };

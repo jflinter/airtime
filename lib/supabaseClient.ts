@@ -92,3 +92,30 @@ export const fetchScores = async (
       })) ?? []
   );
 };
+
+export const fetchHighScore = async (
+  playerId: string
+): Promise<LeaderboardEntry | null> => {
+  return (
+    (await supabase
+      .from('scores')
+      .select('*')
+      .eq('player_id', playerId)
+      .order('duration_ms', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data) {
+          return data.map((d) => {
+            return {
+              id: d.id,
+              name: d.player_name,
+              durationMs: d.duration_ms,
+              date: new Date(d.created_at),
+              hasCase: d.has_case,
+              playerId: d.player_id,
+            };
+          })[0];
+        }
+      })) ?? null
+  );
+};
