@@ -580,7 +580,7 @@ const Game = ({ playerInfo }: GameProps) => {
           ) : (
             <>
               <h1 className="text-md font-semibold">high phone</h1>
-              <ul className="text-md font-normal pl-4 pr-2 pt-2 pb-4">
+              <ul className="text-md text-center font-normal pl-4 pr-4 pt-2 pb-4">
                 <li>👆 Throw your phone high into the sky!</li>
                 <li>👍 Yes, seriously, that is the game</li>
                 <li>🤙 Do it and see what happens</li>
