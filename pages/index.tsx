@@ -585,10 +585,8 @@ const Game = ({ playerInfo }: GameProps) => {
                 <li>👍 Yes, seriously, that is the game</li>
                 <li>🤙 Do it and see what happens</li>
                 <li>✌️ Has to be at least 2 feet</li>
-                <li>
-                  🤝 Pro tip: get your friends to do it too and see who can
-                  throw theirs highest
-                </li>
+                <li>🫴 Catching optional but recommended</li>
+                <li>👊 Hitting ceiling etc DQs your throw</li>
                 {playerHighScore && (
                   <li>
                     👏 Your highest throw is{' '}
